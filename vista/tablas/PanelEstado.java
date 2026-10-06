@@ -7,6 +7,8 @@ package vista.tablas;
 import conexion.Conexion;
 //Sesion: guarda quien inicio sesion,aqui se usa getIdUsuario() para dejar el id en el registro y getLogin() para el mensaje de exito
 import modelo.Sesion;
+//Bitacora: guarda quien hizo cada movimiento (tambien las bajas, que ya no dejan renglon en Estado)
+import modelo.Bitacora;
 
 //el * importa todas las clases de javax.swing: JPanel, JLabel, JButton, JTextField, JTable, JComboBox,
 //JScrollPane, JOptionPane, JComponent, RowFilter, SwingUtilities, etc.
@@ -61,7 +63,7 @@ public class PanelEstado extends JPanel {
     private final TableRowSorter<DefaultTableModel> ordenador = new TableRowSorter<>(modelo);//permite ordenar al hacer clic en los encabezados y filtrar filas
 
     //guarda los valores de la llave primaria del registro que estoy editando tal como estaban antes de editarlo
-    //hace falta porque si el usuario selecciona el estado con ID y y cambia el iD a 7 en el formulario,el UPDATE tiene que buscar la fila
+    //hace falta porque si el usuario selecciona el estado con ID 5 y cambia el ID a 7 en el formulario,el UPDATE tiene que buscar la fila con el 5
     private Integer idOriginal;
 
     //arman la parte visual del panel
@@ -200,6 +202,7 @@ public class PanelEstado extends JPanel {
         try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
             asignar(ps);
             ps.executeUpdate();
+            Bitacora.registrar("Estado", "INSERTAR", txtNombre.getText().trim());
             cargar();
             limpiar();
             exito("Estado registrado por " + Sesion.getLogin() + ".");
@@ -221,6 +224,9 @@ public class PanelEstado extends JPanel {
             asignar(ps);
             ps.setInt(4, idOriginal);
             int filas = ps.executeUpdate();
+            if (filas > 0) {
+                Bitacora.registrar("Estado", "ACTUALIZAR", "ID " + idOriginal + " - " + txtNombre.getText().trim());
+            }
             cargar();
             limpiar();
             if (filas == 0) {
@@ -245,10 +251,13 @@ public class PanelEstado extends JPanel {
         }
         try (PreparedStatement ps = Conexion.obtener().prepareStatement("DELETE FROM Estado WHERE ID_Estado = ?")) {
             ps.setInt(1, idOriginal);
-            ps.executeUpdate();
+            if (ps.executeUpdate() > 0) {
+                //el registro ya no existe en Estado, por eso queda anotado en la bitacora quien lo borro
+                Bitacora.registrar("Estado", "ELIMINAR", "ID " + idOriginal + " - " + txtNombre.getText().trim());
+            }
             cargar();
             limpiar();
-            exito("Estado eliminado.");
+            exito("Estado eliminado por " + Sesion.getLogin() + ".");
         } catch (SQLException e) {
             error(traducir(e));
         }
@@ -366,7 +375,7 @@ public class PanelEstado extends JPanel {
             case 1054:
                 return "Falta la columna ID_Usuario en la tabla Estado. Ejecuta el script usuarios_finales.sql.";
             case 1146:
-                return "No existe la tabla Estado.";
+                return "Falta una tabla (Estado o Bitacora). Ejecuta el script usuarios_finales.sql.";
             default:
                 return "Error de MySQL " + e.getErrorCode() + ": " + e.getMessage();
         }

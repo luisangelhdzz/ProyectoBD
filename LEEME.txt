@@ -5,13 +5,14 @@ ESTRUCTURA
 ----------
 ProyectoBD/
   Main.java                      Arranca el programa
-  usuarios_finales.sql           Tabla Usuario + columna ID_Usuario en todas las tablas
+  usuarios_finales.sql           Tabla Usuario, columna ID_Usuario en todas las tablas y tabla Bitacora
   ejecutar.sh                    Compila y abre el programa
   mysql-connector-j-26.7.0.jar   (el tuyo, cópialo aquí)
   conexion/
     Conexion.java                Conexión a MySQL (usuario APP_LIGA)
   modelo/
     Sesion.java                  Usuario final que inició sesión (login contra la tabla Usuario)
+    Bitacora.java                Anota en la tabla Bitacora quién hizo cada movimiento
   vista/
     PanelLogin.java              Pantalla de inicio de sesión
     VentanaPrincipal.java        Ventana, barra con el usuario y una pestaña por tabla
@@ -24,10 +25,13 @@ PASO 1: PREPARAR LA BASE (una sola vez)
   cd ~/Downloads/ProyectoBD
   mysql -u root -p < usuarios_finales.sql
 
+Se puede volver a ejecutar sin problema: lo que ya existe no se vuelve a crear.
+Si ya lo habías corrido antes, córrelo otra vez para que se cree la tabla Bitacora.
+
 Crea la tabla Usuario con dos usuarios finales:
   admin / admin123
   luis  / luis123
-y el usuario de MySQL APP_LIGA, que es con el que la aplicación se conecta por dentro.
+la tabla Bitacora y el usuario de MySQL APP_LIGA, que es con el que la aplicación se conecta por dentro.
 
 
 PASO 2: EJECUTAR
@@ -39,7 +43,7 @@ O a mano:
   javac -encoding UTF-8 -cp mysql-connector-j-26.7.0.jar -d out Main.java conexion/*.java modelo/*.java vista/*.java vista/tablas/*.java
   java -cp out:mysql-connector-j-26.7.0.jar Main
 
-Si tu conector tiene otro nombre, cámbialo en ejecutar.sh y en .vscode/settings.json.
+Si tu conector tiene otro nombre, cámbialo en ejecutar.sh.
 
 
 VALIDACIONES DE LA TABLA ESTADO
@@ -51,6 +55,8 @@ VALIDACIONES DE LA TABLA ESTADO
   Eliminar pide confirmación y avisa si hay registros de otras tablas que dependen del estado.
 
 Cada alta o cambio guarda en ID_Usuario quién hizo el movimiento.
+Además, altas, cambios y bajas quedan anotados en la tabla Bitacora (usuario, acción y fecha),
+así también se sabe quién eliminó un registro.
 
 
 CÓMO AGREGAR OTRA TABLA (ejemplo: Posicion)
@@ -59,6 +65,7 @@ CÓMO AGREGAR OTRA TABLA (ejemplo: Posicion)
    - el nombre de la clase y del constructor
    - la tabla y las columnas en las consultas (Estado, ID_Estado, Nombre_Estado)
    - los textos de las etiquetas y de los mensajes
+   - el nombre de la tabla en las llamadas a Bitacora.registrar("Estado", ...)
 
 2. Regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
 
