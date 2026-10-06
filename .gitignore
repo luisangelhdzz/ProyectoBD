@@ -1,0 +1,31 @@
+# --- macOS ---
+.DS_Store
+
+# --- Java compilado ---
+*.class
+*.jar
+!lib/*.jar
+bin/
+out/
+build/
+target/
+dist/
+
+# --- NetBeans ---
+nbproject/private/
+
+# --- IntelliJ IDEA ---
+.idea/
+*.iml
+
+# --- VS Code ---
+.vscode/
+
+# --- Restos de la versión en Python ---
+__pycache__/
+*.pyc
+venv/
+
+# --- Credenciales ---
+config.properties
+.env
