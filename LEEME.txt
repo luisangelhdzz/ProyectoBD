@@ -12,17 +12,11 @@ ProyectoBD/
     Conexion.java                Conexión a MySQL (usuario APP_LIGA)
   modelo/
     Sesion.java                  Usuario final que inició sesión (login contra la tabla Usuario)
-    Campo.java                   Describe una columna: tipo, si es llave, si es obligatoria...
-    Opcion.java                  Elemento de una lista desplegable (llaves foráneas)
   vista/
-    Estilo.java                  Colores, fuentes y botones
     PanelLogin.java              Pantalla de inicio de sesión
-    VentanaPrincipal.java        Ventana, barra superior y menú lateral
-    PanelTabla.java              Clase base: formulario, tabla, buscador y CRUD
+    VentanaPrincipal.java        Ventana, barra con el usuario y una pestaña por tabla
     tablas/
-      PanelEstado.java
-      PanelPosicion.java
-      PanelPatrocinador.java
+      PanelEstado.java           Tabla Estado: formulario, tabla, buscador, validaciones y CRUD
 
 
 PASO 1: PREPARAR LA BASE (una sola vez)
@@ -48,47 +42,26 @@ O a mano:
 Si tu conector tiene otro nombre, cámbialo en ejecutar.sh y en .vscode/settings.json.
 
 
-CÓMO AGREGAR OTRA TABLA (ejemplo: Ciudad)
------------------------------------------
-1. Crea vista/tablas/PanelCiudad.java:
+VALIDACIONES DE LA TABLA ESTADO
+-------------------------------
+  ID        Opcional al insertar (MySQL lo asigna). Si se escribe, debe ser un entero mayor que 0.
+            No puede quedar vacío al actualizar ni repetirse.
+  Nombre    Obligatorio, máximo 20 caracteres.
+  Actualizar y Eliminar piden seleccionar antes un estado de la tabla.
+  Eliminar pide confirmación y avisa si hay registros de otras tablas que dependen del estado.
 
-   package vista.tablas;
+Cada alta o cambio guarda en ID_Usuario quién hizo el movimiento.
 
-   import modelo.Campo;
-   import vista.PanelTabla;
 
-   public class PanelCiudad extends PanelTabla {
+CÓMO AGREGAR OTRA TABLA (ejemplo: Posicion)
+-------------------------------------------
+1. Copia vista/tablas/PanelEstado.java como vista/tablas/PanelPosicion.java y cambia:
+   - el nombre de la clase y del constructor
+   - la tabla y las columnas en las consultas (Estado, ID_Estado, Nombre_Estado)
+   - los textos de las etiquetas y de los mensajes
 
-       public PanelCiudad() {
-           super("Ciudad", "ciudad", true, "Ciudades",
-                   Campo.id("ID_Ciudad", "ID"),
-                   Campo.foranea("ID_Estado", "Estado", "Estado", "Nombre_Estado"),
-                   Campo.texto("Nombre_Ciudad", "Nombre de la ciudad", 20));
-       }
-   }
+2. Regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
 
-2. Regístrala en VentanaPrincipal.java, dentro de registrarSecciones():
+   pestanas.addTab("Posiciones", new PanelPosicion());
 
-   agregar("CATÁLOGOS", new PanelCiudad());
-
-   (y su import: import vista.tablas.PanelCiudad;)
-
-Tipos de campo disponibles:
-  Campo.id(columna, etiqueta)                         llave AUTO_INCREMENT
-  Campo.texto(columna, etiqueta, maximo)              VARCHAR
-  Campo.entero(columna, etiqueta)                     INT
-  Campo.decimal(columna, etiqueta)                    DECIMAL
-  Campo.fecha(columna, etiqueta)                      DATE (AAAA-MM-DD)
-  Campo.foranea(columna, etiqueta, tablaPadre, columnaQueSeMuestra)
-
-Ajustes que se pueden agregar al final:
-  .opcional()     el campo puede quedar vacío (NULL)
-  .comoLlave()    forma parte de una llave primaria compuesta (Contrato, Carrera, Alineacion)
-
-Ejemplo de llave compuesta (Contrato):
-  Campo.foranea("ID_Equipo", "Equipo", "Equipo", "Nombre_Equipo").comoLlave(),
-  Campo.foranea("ID_Patrocinador", "Patrocinador", "Patrocinador", "Nombre_Patrocinador").comoLlave(),
-  Campo.fecha("Inicio_Contrato", "Inicio").opcional(),
-  Campo.fecha("Fin_Contrato", "Fin").opcional()
-
-La clase base se encarga sola de guardar en ID_Usuario quién hizo el movimiento.
+   (y su import: import vista.tablas.PanelPosicion;)

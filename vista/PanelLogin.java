@@ -32,38 +32,16 @@ public class PanelLogin extends JPanel {
     private final JPasswordField txtClave = new JPasswordField(18);
     //etiqueta roja donde se muestran los errores
     //empieza con " " (un espacio) y no con "" para que la etiqueta ya ocupe su altura y el formulario no "brinque" cuando aparece un error
-    //-1 = un punto mas chica que el tamano base de letra, false = sin negrita, ROJO = color del texto
-    private final JLabel lblError = Estilo.etiqueta(" ", -1, false, Estilo.ROJO);
+    private final JLabel lblError = new JLabel(" ");
 
     //constructor: se ejecuta al hacer new PanelLogin(...) y arma toda la pantalla
     public PanelLogin(Runnable alEntrar) {
         //guarda la accion recibida en el atributo de la clase (this.alEntrar) para usarla despues en entrar()
         this.alEntrar = alEntrar;
-        //BorderLayout divide el panel en 5 zonas: NORTH, SOUTH, EAST, WEST y CENTER
-        //aqui usamos NORTH para la banda verde y CENTER para el formulario
-        setLayout(new BorderLayout());
-        //pinta el fondo de todo el panel color crema
-        setBackground(Estilo.CREMA);
-
-        // Banda verde con el título
-        //panel para la franja de arriba; GridBagLayout con un solo componente lo deja centrado vertical y horizontalmente
-        JPanel banda = new JPanel(new GridBagLayout());
-        //fondo verde de la banda
-        banda.setBackground(Estilo.VERDE);
-        //tamano preferido: 440 pixeles de ancho y 90 de alto (BorderLayout respeta el alto en NORTH y estira el ancho)
-        banda.setPreferredSize(new Dimension(440, 90));
-        //agrega el titulo: texto 3 puntos mas grande que el base, en negrita (true) y color blanco
-        banda.add(Estilo.etiqueta("LIGA DE BASEBALL MEXICANA", 3, true, Estilo.BLANCO));
-        //coloca la banda en la parte de arriba del panel
-        add(banda, BorderLayout.NORTH);
-
-        // Formulario
-        //panel que contendra etiquetas, cajas y boton, acomodados con GridBagLayout (una cuadricula flexible)
-        JPanel form = new JPanel(new GridBagLayout());
-        //setOpaque(false) = el panel es transparente,asi se ve el fondo crema del PanelLogin de atras
-        form.setOpaque(false);
+        //el panel acomoda etiquetas, cajas y boton con GridBagLayout (una cuadricula flexible)
+        setLayout(new GridBagLayout());
         //margen interno: 20 arriba, 50 izquierda, 20 abajo, 50 derecha (en pixeles)
-        form.setBorder(new EmptyBorder(20, 50, 20, 50));
+        setBorder(new EmptyBorder(20, 50, 20, 50));
         //GridBagConstraints son las "reglas" de como colocar cada componente en el GridBagLayout
         //se crea una sola vez y se reutiliza cambiandole valores antes de cada add
         GridBagConstraints g = new GridBagConstraints();
@@ -76,48 +54,49 @@ public class PanelLogin extends JPanel {
         g.weightx = 1;
 
         //Insets(arriba, izquierda, abajo, derecha) = margen externo del componente que se agrega
-        //aqui deja 14 pixeles abajo del titulo "Iniciar sesion"
+        //aqui deja 14 pixeles abajo del titulo
         g.insets = new Insets(0, 0, 14, 0);
-        //subtitulo: 4 puntos mas grande, negrita, color de texto normal
-        form.add(Estilo.etiqueta("Iniciar sesión", 4, true, Estilo.TEXTO), g);
+        //titulo centrado y en negrita de 16 puntos
+        JLabel titulo = new JLabel("LIGA DE BASEBALL MEXICANA", SwingConstants.CENTER);
+        titulo.setFont(titulo.getFont().deriveFont(Font.BOLD, 16f));
+        add(titulo, g);
 
         //4 pixeles abajo de la etiqueta "Usuario" para que quede pegadita a su caja
         g.insets = new Insets(0, 0, 4, 0);
-        //etiqueta "Usuario": tamano base (0), negrita
-        form.add(Estilo.etiqueta("Usuario", 0, true, Estilo.TEXTO), g);
+        add(new JLabel("Usuario"), g);
         //12 pixeles abajo de la caja de usuario para separarla de la parte de contrasena
         g.insets = new Insets(0, 0, 12, 0);
-        //le aplica el estilo comun: fuente, fondo blanco, texto oscuro y borde con relleno
-        Estilo.estiloCampo(txtUsuario);
         //agrega la caja de usuario al formulario
-        form.add(txtUsuario, g);
+        add(txtUsuario, g);
 
         //otra vez 4 pixeles debajo de la etiqueta
         g.insets = new Insets(0, 0, 4, 0);
         //etiqueta "Contrasena"
-        form.add(Estilo.etiqueta("Contraseña", 0, true, Estilo.TEXTO), g);
+        add(new JLabel("Contraseña"), g);
         //8 pixeles abajo de la caja de contrasena (antes del mensaje de error)
         g.insets = new Insets(0, 0, 8, 0);
-        //mismo estilo para la caja de contrasena
-        Estilo.estiloCampo(txtClave);
         //agrega la caja de contrasena
-        form.add(txtClave, g);
+        add(txtClave, g);
 
-        //agrega la etiqueta de error (por ahora solo un espacio en blanco),reutiliza el mismo margen de 8 abajo
-        form.add(lblError, g);
-
-        //crea el boton "Entrar" con fondo color arcilla (Estilo.boton ya le pone letra blanca, sin borde y cursor de manita)
-        JButton btnEntrar = Estilo.boton("Entrar", Estilo.ARCILLA);
+        //crea el boton "Entrar"
+        JButton btnEntrar = new JButton("Entrar");
         //cuando se hace clic en el boton se llama al metodo entrar()
         //"e -> entrar()" es una lambda: e es el evento del clic (no se usa) y entrar() es lo que se ejecuta
         btnEntrar.addActionListener(e -> entrar());
         //4 pixeles arriba del boton para separarlo un poco
         g.insets = new Insets(4, 0, 0, 0);
-        //agrega el boton al final del formulario
-        form.add(btnEntrar, g);
+        //agrega el boton debajo de las cajas
+        add(btnEntrar, g);
 
-        //coloca todo el formulario en el centro del panel (ocupa el espacio que deja la banda)
-        add(form, BorderLayout.CENTER);
+        //agrega la etiqueta de error (por ahora solo un espacio en blanco) al final,con 8 pixeles arriba
+        //se queda con todo el espacio que sobra hacia abajo (weighty = 1) y el texto empieza arriba (TOP)
+        //asi un mensaje largo tiene lugar para partirse en varios renglones sin que se corte
+        lblError.setForeground(Color.RED);
+        lblError.setVerticalAlignment(SwingConstants.TOP);
+        g.insets = new Insets(8, 0, 0, 0);
+        g.fill = GridBagConstraints.BOTH;
+        g.weighty = 1;
+        add(lblError, g);
 
         //en un JTextField el ActionListener se dispara al presionar ENTER
         //si das ENTER en la caja de usuario, el cursor salta a la caja de contrasena
