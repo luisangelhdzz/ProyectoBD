@@ -3,7 +3,8 @@ package vista;
 import conexion.Conexion;
 import modelo.Sesion;
 import vista.tablas.PanelEstado;
-
+import vista.tablas.PanelPatrocinador;
+import vista.tablas.PanelPosicion;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -46,7 +47,8 @@ public class VentanaPrincipal extends JFrame {
         // ------------------------------------------------------------------
         JTabbedPane pestanas = new JTabbedPane();
         pestanas.addTab("Estados", new PanelEstado());
-
+        pestanas.addTab("Posiciones",new PanelPosicion());
+        pestanas.addTab("Patrocinadores",new PanelPatrocinador());
         // Siguientes tablas, por ejemplo:
         // pestanas.addTab("Ciudades", new PanelCiudad());
         // pestanas.addTab("Equipos", new PanelEquipo());
