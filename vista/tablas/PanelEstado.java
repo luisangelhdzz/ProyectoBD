@@ -175,17 +175,27 @@ public class PanelEstado extends JPanel {
         return new JScrollPane(vista);
     }
 
-    // ==================================================================
-    // CONSULTAS A MYSQL
-    // ==================================================================
 
-    /** Trae todos los registros de la tabla junto con el usuario que hizo el último cambio. */
+
+    //lee todos los estados de mySQL y los pone en la tabla de la pantalla
     private void cargar() {
         String sql = "SELECT e.ID_Estado, e.Nombre_Estado, u.Login_Usuario FROM Estado e "
                 + "LEFT JOIN Usuario u ON u.ID_Usuario = e.ID_Usuario ORDER BY e.ID_Estado";
-        modelo.setRowCount(0);
+        modelo.setRowCount(0);//es el defaultTableModel donde se guardan los datos que la JTable muestra
+        //poner los renglones en 0 borra todo lo que tenia
+        //te da la conexion abierta a mysql con el usuario app_Liga
+        //crea un statment que es el objeto que manda sql a mysql
+        //manda el select y regresa un resultset,los renglones de la tabla de arriba que se leen uno por uno
         try (Statement st = Conexion.obtener().createStatement(); ResultSet resultado = st.executeQuery(sql)) {
+            //el resultSet tiene un cursor que empieza antes del primer renglon cada next avanza al siguiente renglon y regresa
+            //true si habia renglon y entonces entra al while
+            //false cuando ya no hay mas y el ciclo ter,ina
             while (resultado.next()) {
+                //lee la columna 1 del renglon actual como numero
+                //lee nombre_Estado como texto
+                //si el left join no encontro usuario,regresa null y la celda sale vacia
+                //arma un arreglo con esos tres valores,es object porque mezcla un numero con textos
+                //agrega ese arreglo como renglon nuevo
                 modelo.addRow(new Object[]{resultado.getInt(1), resultado.getString(2), resultado.getString(3)});
             }
         } catch (SQLException e) {
@@ -195,16 +205,28 @@ public class PanelEstado extends JPanel {
     }
 
     private void insertar() {
+        //validar las cajas del formulario\
+        //si algo esta mal,validar muestra el mensaje ene rojo,pone el cursior en la caja con el problema y regresa false
+        //el ! lo invierte a true,entra el if y el return corta el metodo ahi
+        //asi nunca se manda a mysql un dato invalido
         if (!validar(false)) {
             return;
         }
+        //los huecos ? se llenan despues
+        //id_estado
+        //nombre_Estado
+        //id_usuario
         String sql = "INSERT INTO Estado (ID_Estado, Nombre_Estado, ID_Usuario) VALUES (?, ?, ?)";
+        //da la conexion a mysql
+        //le manda a mysql la consulta con sus huecos y regresa ps que todavia esta vacio
         try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            asignar(ps);
-            ps.executeUpdate();
+            asignar(ps);//llama al metodo asignaa que llena los tres ?
+            ps.executeUpdate();//se guarda en mysql
+            //guarda cada renglon en la tabla bitacora
             Bitacora.registrar("Estado", "INSERTAR", txtNombre.getText().trim());
-            cargar();
+            cargar();//vuelve a hacer select para que el estado nuevo aparezca en la tabla con su id y ultimo cambio por
             limpiar();
+            //muestra en verde denajo de los botones que salio tod con exito
             exito("Estado registrado por " + Sesion.getLogin() + ".");
         } catch (SQLException e) {
             error(traducir(e));
@@ -212,26 +234,38 @@ public class PanelEstado extends JPanel {
     }
 
     private void actualizar() {
+        //seleccionaste un estado?
+        //si es null no has elegido ningun estado
         if (idOriginal == null) {
             error("Selecciona un estado de la tabla.");
             return;
         }
+        //si estas actualizando
+        //significado de "?
+        // id nuevo lo que esta en la caja id
+        // id nombre o que esta en la caja nombre
+        //quien hizo el ccambio
+        //cual renglon cambiar
         if (!validar(true)) {
             return;
         }
         String sql = "UPDATE Estado SET ID_Estado = ?, Nombre_Estado = ?, ID_Usuario = ? WHERE ID_Estado = ?";
         try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            asignar(ps);
-            ps.setInt(4, idOriginal);
+            asignar(ps);//llena los huecos ?
+            ps.setInt(4, idOriginal);//llenaq el cuarto hueco a mano
+            //ejecuta el update y guarda el numero que regresa cuantos renglones encontro en el where
+            //1 encontro el estwdo y lo cambio
+            //0 no existe ningun esatdo con su id
             int filas = ps.executeUpdate();
+            //solo cambia la bitacora si de verdad se actualizo
             if (filas > 0) {
                 Bitacora.registrar("Estado", "ACTUALIZAR", "ID " + idOriginal + " - " + txtNombre.getText().trim());
             }
-            cargar();
-            limpiar();
-            if (filas == 0) {
+            cargar();//refrescar la pantalla
+            limpiar();//vacia las cajas,quita la seleciion y regresa id original a null para hacer otro cambios tienes que volver a seleccionar
+            if (filas == 0) {//0 aviso en rojo porque el estadfo ya no estaba en la base
                 error("Ese estado ya no existe.");
-            } else {
+            } else {//mas de 0 aviso en verde
                 exito("Estado actualizado por " + Sesion.getLogin() + ".");
             }
         } catch (SQLException e) {
@@ -240,14 +274,15 @@ public class PanelEstado extends JPanel {
     }
 
     private void eliminar() {
+        //
         if (idOriginal == null) {
             error("Selecciona un estado de la tabla.");
             return;
         }
         int r = JOptionPane.showConfirmDialog(this, "¿Seguro que deseas eliminar este estado?",
                 "Eliminar estado", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (r != JOptionPane.YES_OPTION) {
-            return;
+        if (r != JOptionPane.YES_OPTION) {//si no dijo que si
+            return;//cierra el metodo
         }
         try (PreparedStatement ps = Conexion.obtener().prepareStatement("DELETE FROM Estado WHERE ID_Estado = ?")) {
             ps.setInt(1, idOriginal);
@@ -263,42 +298,58 @@ public class PanelEstado extends JPanel {
         }
     }
 
-    /** Pone los valores del formulario (ya validados) en los tres primeros ? del PreparedStatement. */
+    //toma lo que escribiste en el formulario y lo pone en los heucos ? 
+    //private:solo se puede usar dentro de panelEstado
+    //void :no regresa nada,su trabajo es modificar el ps que recibe
+    //preparedStatment ps:recibe la consulta ya preparada
     private void asignar(PreparedStatement ps) throws SQLException {
+        //lee el texto de la caja id,trim le quita los espacios al inicio y al final
         String id = txtId.getText().trim();
+        //si la caja esta vacia
         if (id.isEmpty()) {
+            //pone null en el primer ?
             ps.setNull(1, Types.NULL); // MySQL asigna el número
-        } else {
+        } else {//si la caja tiene algo comnvierte el texto y lo pone en el primer ?
             ps.setInt(1, Integer.parseInt(id));
         }
+        //lee la caja nombre,le quita los espacios de las orillas y las pone en el segundo ?
         ps.setString(2, txtNombre.getText().trim());
+        //pone en el tercer ? el id del usuario que iniciuo sesion
         ps.setInt(3, Sesion.getIdUsuario());
     }
 
-    // ==================================================================
-    // FORMULARIO
-    // ==================================================================
 
-    /** Valida lo que hay en el formulario. Si algo está mal avisa, pone el cursor en esa caja y devuelve false. */
+    //rveis aprimero el id y despues el nombre,en cuanto encuentra el primer problema lo guarda junto con la caja donde esta 
+    //y al final muestra el mensaje y pone el cursor en esa caja
     private boolean validar(boolean actualizando) {
         String id = txtId.getText().trim();
         String nombre = txtNombre.getText().trim();
+        //aqui se guarda el mensaje de error 
+        // empieza en null
+        //que significa:"todavia no hay ningun problema "
         String problema = null;
+        //la caja donde esta el problema para poner ahi el cursor al final
+        //empieza apuntando a txtID porque el id es lo primero que se revisa
         JTextField caja = txtId;
 
+        //si la caja esta vacia
         if (id.isEmpty()) {
+            //y estas actualizando
             if (actualizando) {
+                //es un problema porque no puedes cambiar el id de un estado a nada
                 problema = "El ID no puede quedar vacío al actualizar.";
             }
         } else {
             try {
-                if (Integer.parseInt(id) <= 0) {
+                //si la caja id tiene algo,revisa que sea un enetero mayora 0
+                if (Integer.parseInt(id) <= 0) {//si es 0 o negativo lanza error
                     throw new NumberFormatException();
                 }
             } catch (NumberFormatException e) {
                 problema = "El ID debe ser un número entero mayor que 0.";
             }
         }
+        //revisa el nombre solo si el id estuvo bien
         if (problema == null) {
             caja = txtNombre;
             if (nombre.isEmpty()) {
@@ -311,39 +362,67 @@ public class PanelEstado extends JPanel {
             error(problema);
             caja.requestFocusInWindow();
         }
+        //sin problema:regresa true i insertar() o actualizar() continuan
+        //con problema regeresa false y corta el metodo
         return problema == null;
     }
 
-    /** Pasa la fila elegida en la tabla al formulario. */
+    //este metodo se ejcuta cuando el usuario seleccion una fila de la tabla
+    //toma los datos de lafila y los pome e los cmapos de texto de formulario para editarlos
     private void seleccionar() {
+        //obtiene el indice de la fila seleccionada en la tabla(vista) si no hay ninguna seleccionada devuelve -1
         int fila = vista.getSelectedRow();
-        if (fila < 0) {
-            return;
+        if (fila < 0) {//si no hay fila seleccionada en la tabla
+            return;//el metodo termina sin hacer nada
         }
+        //comvierte el indice de la fila visible al indice real en el modelo de datos
         int f = vista.convertRowIndexToModel(fila);
+        //lee el valor de la columna 0(o el id) de esa fila y lo guarda en idOriginal
+        //conservq el id con el que se cargo el registro
         idOriginal = (Integer) modelo.getValueAt(f, 0);
+        //muestra es id en el campo de texto
         txtId.setText(idOriginal.toString());
+        //lee la columna 1(el nombre) y la comvierte a string
         txtNombre.setText((String) modelo.getValueAt(f, 1));
+        //limpia la etiqueta de mensajes
         lblMensaje.setText(" ");
     }
 
     private void limpiar() {
+        //vacia el campo de texto del id
         txtId.setText("");
         txtNombre.setText("");
+        //quita la selecciojn de la tabla,asi que nugnuna fila queda resaltada
         vista.clearSelection();
+        //borramos el id guardado por seleccionar() con null indicamos que no hay ningun registro en edicion
         idOriginal = null;
     }
 
     private void filtrar() {
+        //lee el texto del campo de busqueda y le quita loes espacios al incio y al final
         String texto = txtBuscar.getText().trim();
+        //aplica un filtro ordenador de filas de la tabla
+        //este filrtro decide que filas se muestran y cuaales se ocultan el filtro se arma con una condicion
+        //si el campo esta vacio,pasa null que quita el filtro y muestra todas las filas
+        //si hay texto usa RowFilter.regexFilter("(?i)" + Pattern.quote(texto)).
+        //RowFilter.regexFilter(...) muestra solo las filas donde alguna columna coincide con la expresion regular al no inidcar columnas ,busca en todas
+        //(?i) hace que la busqueda ignore mayusculas y minisculas
+        //Pattern.quote(texto) hace que el texto se tome de forma literal. Sin esto, si el usuario escribe caracteres como ., ( o *, se interpretarían como parte de una expresión regular y podrían dar resultados incorrectos o lanzar un error.
         ordenador.setRowFilter(texto.isEmpty() ? null : RowFilter.regexFilter("(?i)" + Pattern.quote(texto)));
         actualizarConteo();
     }
 
+
+    //este metodo actualiza la etiqueta que muestra cuantos registros hay y cuantos se ven cuandi hay un filtro activo
     private void actualizarConteo() {
+        //cuenta todas las filas del modelo de datos,es decir,todos los registros cargados eseten visibles o no
         int total = modelo.getRowCount();
+        //cuenta las filas que muestra la tabla en ese momento
         int visibles = vista.getRowCount();
+        //elige entre singular y plural segun el total
+        //con 1 usa registro y con cualquier otro numero incluido 0 usa registros
         String palabra = total == 1 ? " registro" : " registros";
+        //escribe el tecto en la etiqueta usando otra condicion
         lblConteo.setText(visibles == total ? total + palabra : visibles + " de " + total + palabra);
     }
 
