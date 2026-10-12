@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS Usuario (
 -- INSERT IGNORE: si el login ya existe no marca error, solo lo salta
 INSERT IGNORE INTO Usuario (Nombre_Usuario, Login_Usuario, Contrasena_Usuario) VALUES
     ('Administrador',  'admin', SHA2('admin123', 256)),
-    ('Luis Hernández', 'luis',  SHA2('luis123', 256));
+    ('Luis Hernández', 'luis',  SHA2('luis123', 256)),
+    ('Jason', 'jason', SHA2('jason123', 256));
 
 SELECT ID_Usuario, Nombre_Usuario, Login_Usuario FROM Usuario;
 
