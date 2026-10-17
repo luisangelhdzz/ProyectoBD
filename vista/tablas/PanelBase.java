@@ -16,10 +16,10 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
-import javax.swing.text.AbstractDocument;
+import javax.swing.text.AbstractDocument;//el tipo de cuaderno que acepta un filtro
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
-import javax.swing.text.DocumentFilter;
+import javax.swing.text.DocumentFilter;//el portero
 import javax.swing.text.StyleConstants;
 
 import java.awt.*;
@@ -122,7 +122,7 @@ public abstract class PanelBase extends JPanel {
         g.weightx = 1;
 
         //al llegar al maximo las cajas ya no dejan escribir ni pegar mas caracteres
-        limitar(txtId, MAXIMO_ID, true);//true: el id solo acepta numeros
+        limitar(txtId, MAXIMO_ID, true);//a la caja del id ponle un limite de 10 y que solo acepte numeros
         limitar(txtNombre, maximoNombre, false);//false: el nombre acepta cualquier caracter
 
         g.insets = new Insets(0, 0, 4, 0);//4 pixeles abajo para que la etiqueta quede pegada a su caja
@@ -322,17 +322,26 @@ public abstract class PanelBase extends JPanel {
         return problema == null;
     }
 
-    //le pone un limite de caracteres a una caja de texto,y si soloNumeros es true tambien bloquea todo lo que no sea numero
-    //el DocumentFilter revisa todo lo que se escribe o se pega ANTES de que entre a la caja
-    //si ya no cabe completo,solo deja entrar lo que cabe,asi la caja nunca pasa del maximo
+
+    //antes la caja dejaba entrar todo y la revision pasaba hasta que das clic
+    //ahora cada caja tiene un portero,que ahora lo revisa
+    //en java ese portero se llama documentfilter.un jtextField no guarda el texto el mismo
+    //lo guarda en un objeto llamado document,como un cuaderno detras de la caja
+    //todo lo que entra a la caja pasa por ese cuaderni y si el cuaderno tiene un filtro se ejecuta antes
+ //recibe 3 cosas :la caja el maximo de caracteres y si solo acepta numeros(true o false)
     private static void limitar(JTextField caja, int maximo, boolean soloNumeros) {
+        //saca el cuaderno de la caja.crea el portero y se lo pone al cuaderno,es una clase anonima
         ((AbstractDocument) caja.getDocument()).setDocumentFilter(new DocumentFilter() {
             //se llama al escribir una tecla,al pegar y con setText
             //borrados: cuantos caracteres se van a reemplazar (si seleccionas texto y escribes encima)
             @Override
+            //fb=la puerta de atras para escribir de verdad en el cuaderno sin volver a pasar por el portero
+            //inicio=la posicion donde va a entrar el texto,0 es el principio
+            //borrados=cuantos caracteres se van a reemplazar
+            //texto=lo que quiere entrar
+            //atributos=informacion extra(acento)
             public void replace(FilterBypass fb, int inicio, int borrados, String texto, AttributeSet atributos) throws BadLocationException {
-                //en la Mac el acento (´) entra primero como texto temporal y se quita solo al presionar la vocal,
-                //ese se deja pasar,lo que se revisa es la letra ya acentuada (á),si no,con la caja llena borraria la ultima letra
+                //ESTO ES POR LOS ACENTOS DE LA MAC
                 boolean temporal = atributos != null && atributos.isDefined(StyleConstants.ComposedTextAttribute);
                 if (!temporal && texto != null) {
                     //[0-9]* significa "puros digitos del 0 al 9",si trae una letra,espacio o signo no entra nada
