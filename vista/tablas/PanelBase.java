@@ -16,6 +16,10 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
+import javax.swing.text.AbstractDocument;//el tipo de cuaderno que acepta un filtro
+import javax.swing.text.AttributeSet;
+import javax.swing.text.BadLocationException;
+import javax.swing.text.DocumentFilter;//el portero
 
 import java.awt.*;
 import java.sql.*;
@@ -24,6 +28,9 @@ import java.util.regex.Pattern;
 public abstract class PanelBase extends JPanel {
 
     private static final Color VERDE = new Color(0, 128, 0);//color de los mensajes de exito
+    //cuantos digitos deja escribir la caja del id: el id se lee con Integer.parseInt
+    //y el int mas grande de java es 2147483647,que tiene 10 digitos
+    private static final int MAXIMO_ID = 10;
 
     //datos propios de cada tabla,los manda la clase hija en el constructor
     private final String tabla;//nombre de la tabla en MySQL,ej. "Estado"
@@ -112,6 +119,10 @@ public abstract class PanelBase extends JPanel {
         g.gridx = 0;//columna fija + fila relativa:cada componente queda debajo del anterior
         g.fill = GridBagConstraints.HORIZONTAL;
         g.weightx = 1;
+
+        //al llegar al maximo las cajas ya no dejan escribir ni pegar mas caracteres
+        limitar(txtId, MAXIMO_ID, true);//a la caja del id ponle un limite de 10 y que solo acepte numeros
+        limitar(txtNombre, maximoNombre, false);//false: el nombre acepta cualquier caracter
 
         g.insets = new Insets(0, 0, 4, 0);//4 pixeles abajo para que la etiqueta quede pegada a su caja
         form.add(new JLabel("ID (vacío = se asigna solo)"), g);
@@ -291,7 +302,7 @@ public abstract class PanelBase extends JPanel {
                     throw new NumberFormatException();
                 }
             } catch (NumberFormatException e) {
-                problema = "El ID debe ser un número entero mayor que 0.";
+                problema = "El ID debe ser un número entre 1 y 2147483647.";
             }
         }
         //revisa el nombre solo si el id estuvo bien
@@ -308,6 +319,46 @@ public abstract class PanelBase extends JPanel {
             caja.requestFocusInWindow();
         }
         return problema == null;
+    }
+
+
+    //antes la caja dejaba entrar todo y la revision pasaba hasta que das clic
+    //ahora cada caja tiene un portero,que ahora lo revisa
+    //en java ese portero se llama documentfilter.un jtextField no guarda el texto el mismo
+    //lo guarda en un objeto llamado document,como un cuaderno detras de la caja
+    //todo lo que entra a la caja pasa por ese cuaderni y si el cuaderno tiene un filtro se ejecuta antes
+ //recibe 3 cosas :la caja el maximo de caracteres y si solo acepta numeros(true o false)
+    private static void limitar(JTextField caja, int maximo, boolean soloNumeros) {
+        //saca el cuaderno de la caja.crea el portero y se lo pone al cuaderno,es una clase anonima
+        ((AbstractDocument) caja.getDocument()).setDocumentFilter(new DocumentFilter() {
+            //se llama al escribir una tecla,al pegar y con setText
+            //borrados: cuantos caracteres se van a reemplazar (si seleccionas texto y escribes encima)
+            @Override
+            //fb=la puerta de atras para escribir de verdad en el cuaderno sin volver a pasar por el portero
+            //inicio=la posicion donde va a entrar el texto,0 es el principio
+            //borrados=cuantos caracteres se van a reemplazar
+            //texto=lo que quiere entrar
+            //atributos=informacion extra
+            public void replace(FilterBypass fb, int inicio, int borrados, String texto, AttributeSet atributos) throws BadLocationException {
+                if (texto != null) {
+                    //[0-9]* significa "puros digitos del 0 al 9",si trae una letra,espacio o signo no entra nada
+                    if (soloNumeros && !texto.matches("[0-9]*")) {
+                        return;
+                    }
+                    int caben = maximo - (fb.getDocument().getLength() - borrados);//espacio que queda libre en la caja
+                    if (texto.length() > caben) {
+                        texto = texto.substring(0, Math.max(caben, 0));//corta lo que sobra
+                    }
+                }
+                super.replace(fb, inicio, borrados, texto, atributos);
+            }
+
+            //la otra forma de meter texto a la caja,hace lo mismo que replace pero sin reemplazar nada
+            @Override
+            public void insertString(FilterBypass fb, int inicio, String texto, AttributeSet atributos) throws BadLocationException {
+                replace(fb, inicio, 0, texto, atributos);
+            }
+        });
     }
 
     //se ejecuta cuando el usuario selecciona una fila de la tabla,pone sus datos en el formulario para editarlos
