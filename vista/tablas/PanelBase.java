@@ -20,7 +20,6 @@ import javax.swing.text.AbstractDocument;//el tipo de cuaderno que acepta un fil
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DocumentFilter;//el portero
-import javax.swing.text.StyleConstants;
 
 import java.awt.*;
 import java.sql.*;
@@ -339,11 +338,9 @@ public abstract class PanelBase extends JPanel {
             //inicio=la posicion donde va a entrar el texto,0 es el principio
             //borrados=cuantos caracteres se van a reemplazar
             //texto=lo que quiere entrar
-            //atributos=informacion extra(acento)
+            //atributos=informacion extra
             public void replace(FilterBypass fb, int inicio, int borrados, String texto, AttributeSet atributos) throws BadLocationException {
-                //ESTO ES POR LOS ACENTOS DE LA MAC
-                boolean temporal = atributos != null && atributos.isDefined(StyleConstants.ComposedTextAttribute);
-                if (!temporal && texto != null) {
+                if (texto != null) {
                     //[0-9]* significa "puros digitos del 0 al 9",si trae una letra,espacio o signo no entra nada
                     if (soloNumeros && !texto.matches("[0-9]*")) {
                         return;
