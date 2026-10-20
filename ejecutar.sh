@@ -13,6 +13,12 @@ if [ ! -f "$CONECTOR" ]; then
     exit 1
 fi
 
+# En Windows (Git Bash) el separador del classpath es ';', en Linux y macOS es ':'
+SEP=":"
+case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*) SEP=";" ;;
+esac
+
 javac -encoding UTF-8 -cp "$CONECTOR" -d out \
     Main.java conexion/*.java modelo/*.java vista/*.java vista/tablas/*.java \
-  && java -cp "out:$CONECTOR" Mainc
+  && java -cp "out${SEP}$CONECTOR" Main
