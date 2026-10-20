@@ -8,7 +8,8 @@ ProyectoBD/
   usuarios_finales.sql           Tabla Usuario, columna ID_Usuario en todas las tablas y tabla Bitacora
   datos_prueba.sql               Dos registros de prueba en cada tabla (menos Usuario y Bitacora)
   ejecutar.sh                    Compila y abre el programa
-  mysql-connector-j-26.7.0.jar   (el tuyo, cópialo aquí)
+  Lib/
+    mysql-connector-j-26.7.0.jar Conector de MySQL (también puede ir en la raíz del proyecto)
   conexion/
     Conexion.java                Conexión a MySQL (usuario APP_LIGA)
   modelo/
@@ -19,6 +20,7 @@ ProyectoBD/
     PanelLogin.java              Pantalla de inicio de sesión
     VentanaPrincipal.java        Ventana, barra con el usuario y una pestaña por tabla
     tablas/
+<<<<<<< HEAD
       PanelBase.java             Base de las tablas PADRE (solo ID y nombre): formulario, tabla, buscador, validaciones y CRUD
       PanelEstado.java           Tabla Estado         (hereda de PanelBase)
       PanelPosicion.java         Tabla Posicion       (hereda de PanelBase)
@@ -28,6 +30,11 @@ ProyectoBD/
       PanelCiudad.java           Tabla Ciudad         (hereda de PanelBaseHija; padre: Estado)
       PanelContrato.java         Tabla Contrato       (hereda de PanelBaseHija; padres: Equipo y Patrocinador)
       PanelAlineacion.java       Tabla Alineacion     (hereda de PanelBaseHija; padres: Partido, Equipo, Jugador y Posicion)
+=======
+      PanelBase.java             Clase base de todas las tablas: formulario, tabla, buscador,
+                                 validaciones, CRUD y bitácora (se escribe una sola vez)
+      PanelPosicion.java         Tabla Posicion: solo indica su tabla, sus columnas y el largo del nombre
+>>>>>>> 4f48678758671153c5121a92296130ba6e97bd5d
 
 
 PASO 1: PREPARAR LA BASE (una sola vez)
@@ -36,12 +43,20 @@ PASO 1: PREPARAR LA BASE (una sola vez)
   mysql -u root -p < usuarios_finales.sql
 
 Se puede volver a ejecutar sin problema: lo que ya existe no se vuelve a crear.
-Si ya lo habías corrido antes, córrelo otra vez para que se cree la tabla Bitacora.
+Si ya lo habías corrido antes, córrelo otra vez para que se cree la tabla Bitacora
+y los usuarios nuevos.
 
-Crea la tabla Usuario con dos usuarios finales:
-  admin / admin123
-  luis  / luis123
-la tabla Bitacora y el usuario de MySQL APP_LIGA, que es con el que la aplicación se conecta por dentro.
+El script crea la tabla Usuario con estos usuarios finales:
+  admin   / admin123
+  luis    / luis123
+  jason   / jason123
+  alfredo / alfredo123
+
+También crea la tabla Bitacora y el usuario de MySQL APP_LIGA, que es con el que la
+aplicación se conecta por dentro.
+
+IMPORTANTE: el script agrega la columna ID_Usuario a las tablas existentes, así que
+las tablas (Estado, Posicion, Patrocinador, etc.) deben existir antes de correrlo.
 
 Para tener datos con qué probar (los menús de Contrato y Alineación necesitan equipos, jugadores y partidos):
   mysql -t -u root -p < datos_prueba.sql
@@ -52,13 +67,16 @@ PASO 2: EJECUTAR
   cd ~/Downloads/ProyectoBD
   sh ejecutar.sh
 
-O a mano:
-  javac -encoding UTF-8 -cp mysql-connector-j-26.7.0.jar -d out Main.java conexion/*.java modelo/*.java vista/*.java vista/tablas/*.java
-  java -cp out:mysql-connector-j-26.7.0.jar Main
+El script busca el conector en Lib/ o en la raíz del proyecto.
+
+O a mano (desde la raíz del proyecto):
+  javac -encoding UTF-8 -cp Lib/mysql-connector-j-26.7.0.jar -d out Main.java conexion/*.java modelo/*.java vista/*.java vista/tablas/*.java
+  java -cp out:Lib/mysql-connector-j-26.7.0.jar Main
 
 Si tu conector tiene otro nombre, cámbialo en ejecutar.sh.
 
 
+<<<<<<< HEAD
 VALIDACIONES DE LAS TABLAS PADRE (Estado, Posicion, Patrocinador)
 ------------------------------------------------------------------
   ID        Opcional al insertar (MySQL lo asigna). Si se escribe, debe ser un entero mayor que 0.
@@ -90,12 +108,23 @@ AL ELIMINAR (en todas las tablas)
 Antes de borrar se revisa si otras tablas tienen registros ligados por llave foránea.
 Si los hay, sale una advertencia que dice en qué tablas y cuántos, y no se borra
 (por ejemplo, un estado que todavía tiene ciudades). Si no los hay, pide confirmación.
+=======
+VALIDACIONES DE LAS TABLAS
+--------------------------
+  ID        Opcional al insertar (MySQL lo asigna). Si se escribe, debe ser un entero mayor que 0.
+            No puede quedar vacío al actualizar ni repetirse. Máximo 10 dígitos.
+  Nombre    Obligatorio, con el largo máximo que cada tabla defina (Estado y Posicion: 20).
+  Actualizar y Eliminar piden seleccionar antes un registro de la tabla.
+  Eliminar pide confirmación. Si hay registros de otras tablas que dependen del registro,
+  MySQL no lo deja borrar y la aplicación lo avisa.
+>>>>>>> 4f48678758671153c5121a92296130ba6e97bd5d
 
 Cada alta o cambio guarda en ID_Usuario quién hizo el movimiento.
 Además, altas, cambios y bajas quedan anotados en la tabla Bitacora (usuario, acción y fecha),
 así también se sabe quién eliminó un registro.
 
 
+<<<<<<< HEAD
 CÓMO AGREGAR OTRA TABLA
 -----------------------
 Tabla padre (solo ID y nombre), ejemplo: copia PanelPosicion.java y cambia la tabla y las columnas:
@@ -130,3 +159,29 @@ En los dos casos, regístrala en VentanaPrincipal.java, dentro de mostrarPrincip
    pestanas.addTab("Equipos", new PanelEquipo());
 
    (y su import: import vista.tablas.PanelEquipo;)
+=======
+CÓMO AGREGAR OTRA TABLA (ejemplo: Ciudad)
+-----------------------------------------
+Ya no hace falta copiar ninguna pantalla. Todo el comportamiento está en PanelBase.
+
+1. Crea vista/tablas/PanelCiudad.java con este contenido (ajusta los datos):
+
+   package vista.tablas;
+
+   public class PanelCiudad extends PanelBase {
+       public PanelCiudad() {
+           super("Ciudad", "ID_Ciudad", "Nombre_Ciudad", "Nombre de la ciudad", 30);
+       }
+   }
+
+   Los parámetros son: tabla, columna ID, columna nombre, texto de la etiqueta, largo máximo del nombre.
+
+2. Agrega la columna ID_Usuario a la tabla en usuarios_finales.sql (ya viene con CALL
+   agregar_id_usuario para las tablas del proyecto; si es nueva, agrega un CALL igual).
+
+3. Regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
+
+   pestanas.addTab("Ciudades", new PanelCiudad());
+
+   (y su import: import vista.tablas.PanelCiudad;)
+>>>>>>> 4f48678758671153c5121a92296130ba6e97bd5d
