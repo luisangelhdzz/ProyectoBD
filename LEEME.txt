@@ -6,6 +6,7 @@ ESTRUCTURA
 ProyectoBD/
   Main.java                      Arranca el programa
   usuarios_finales.sql           Tabla Usuario, columna ID_Usuario en todas las tablas y tabla Bitacora
+  datos_prueba.sql               Dos registros de prueba en cada tabla (menos Usuario y Bitacora)
   ejecutar.sh                    Compila y abre el programa
   mysql-connector-j-26.7.0.jar   (el tuyo, cópialo aquí)
   conexion/
@@ -13,11 +14,20 @@ ProyectoBD/
   modelo/
     Sesion.java                  Usuario final que inició sesión (login contra la tabla Usuario)
     Bitacora.java                Anota en la tabla Bitacora quién hizo cada movimiento
+    Dependencias.java            Busca los registros de otras tablas ligados por llave foránea (para avisar antes de eliminar)
   vista/
     PanelLogin.java              Pantalla de inicio de sesión
     VentanaPrincipal.java        Ventana, barra con el usuario y una pestaña por tabla
     tablas/
-      PanelEstado.java           Tabla Estado: formulario, tabla, buscador, validaciones y CRUD
+      PanelBase.java             Base de las tablas PADRE (solo ID y nombre): formulario, tabla, buscador, validaciones y CRUD
+      PanelEstado.java           Tabla Estado         (hereda de PanelBase)
+      PanelPosicion.java         Tabla Posicion       (hereda de PanelBase)
+      PanelPatrocinador.java     Tabla Patrocinador   (hereda de PanelBase)
+      PanelBaseHija.java         Base de las tablas HIJAS (con llaves foráneas): lo mismo, pero las llaves
+                                 foráneas se eligen con un menú desplegable y la llave primaria puede tener varias columnas
+      PanelCiudad.java           Tabla Ciudad         (hereda de PanelBaseHija; padre: Estado)
+      PanelContrato.java         Tabla Contrato       (hereda de PanelBaseHija; padres: Equipo y Patrocinador)
+      PanelAlineacion.java       Tabla Alineacion     (hereda de PanelBaseHija; padres: Partido, Equipo, Jugador y Posicion)
 
 
 PASO 1: PREPARAR LA BASE (una sola vez)
@@ -33,6 +43,9 @@ Crea la tabla Usuario con dos usuarios finales:
   luis  / luis123
 la tabla Bitacora y el usuario de MySQL APP_LIGA, que es con el que la aplicación se conecta por dentro.
 
+Para tener datos con qué probar (los menús de Contrato y Alineación necesitan equipos, jugadores y partidos):
+  mysql -t -u root -p < datos_prueba.sql
+
 
 PASO 2: EJECUTAR
 ----------------
@@ -46,29 +59,74 @@ O a mano:
 Si tu conector tiene otro nombre, cámbialo en ejecutar.sh.
 
 
-VALIDACIONES DE LA TABLA ESTADO
--------------------------------
+VALIDACIONES DE LAS TABLAS PADRE (Estado, Posicion, Patrocinador)
+------------------------------------------------------------------
   ID        Opcional al insertar (MySQL lo asigna). Si se escribe, debe ser un entero mayor que 0.
             No puede quedar vacío al actualizar ni repetirse.
   Nombre    Obligatorio, máximo 20 caracteres.
-  Actualizar y Eliminar piden seleccionar antes un estado de la tabla.
-  Eliminar pide confirmación y avisa si hay registros de otras tablas que dependen del estado.
+  Actualizar y Eliminar piden seleccionar antes un registro de la tabla.
+
+
+VALIDACIONES DE LAS TABLAS HIJAS
+--------------------------------
+Todos los campos con * son obligatorios. Las llaves foráneas se eligen con un menú desplegable que
+muestra solo los registros que existen en la tabla padre, así nunca se guarda un ID que no existe.
+Los menús se vuelven a leer cada vez que abres la pestaña (ahí aparece lo que agregaste en otra pestaña).
+Si alguien borra el registro padre mientras tanto, MySQL lo rechaza, sale el aviso y el menú se actualiza.
+
+  Ciudad       Nombre obligatorio, máximo 20 caracteres. Hay que elegir el estado.
+  Contrato     Hay que elegir equipo y patrocinador. Las fechas deben ser reales y con formato AAAA-MM-DD.
+               La fecha de fin no puede ser antes que la de inicio.
+               Un equipo no puede tener dos contratos con el mismo patrocinador (llave primaria).
+  Alineacion   Hay que elegir partido, equipo, jugador y posición. El orden al bat va del 1 al 9 (CHECK).
+               El equipo tiene que jugar ese partido (ser local o visitante).
+               El jugador tiene que ser de ese equipo.
+               Un jugador aparece una sola vez por partido (llave primaria).
+               En un mismo partido y equipo no se repite el turno al bat ni la posición (UNIQUE).
+
+
+AL ELIMINAR (en todas las tablas)
+---------------------------------
+Antes de borrar se revisa si otras tablas tienen registros ligados por llave foránea.
+Si los hay, sale una advertencia que dice en qué tablas y cuántos, y no se borra
+(por ejemplo, un estado que todavía tiene ciudades). Si no los hay, pide confirmación.
 
 Cada alta o cambio guarda en ID_Usuario quién hizo el movimiento.
 Además, altas, cambios y bajas quedan anotados en la tabla Bitacora (usuario, acción y fecha),
 así también se sabe quién eliminó un registro.
 
 
-CÓMO AGREGAR OTRA TABLA (ejemplo: Posicion)
--------------------------------------------
-1. Copia vista/tablas/PanelEstado.java como vista/tablas/PanelPosicion.java y cambia:
-   - el nombre de la clase y del constructor
-   - la tabla y las columnas en las consultas (Estado, ID_Estado, Nombre_Estado)
-   - los textos de las etiquetas y de los mensajes
-   - el nombre de la tabla en las llamadas a Bitacora.registrar("Estado", ...)
+CÓMO AGREGAR OTRA TABLA
+-----------------------
+Tabla padre (solo ID y nombre), ejemplo: copia PanelPosicion.java y cambia la tabla y las columnas:
 
-2. Regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
+   super("Posicion", "ID_Posicion", "Nombre_Posicion", "Nombre de la posición", 20);
 
-   pestanas.addTab("Posiciones", new PanelPosicion());
+Tabla hija (con llaves foráneas), ejemplo para Equipo: hereda de PanelBaseHija y declara sus campos
+en el orden en que quieres que salgan:
 
-   (y su import: import vista.tablas.PanelPosicion;)
+   public class PanelEquipo extends PanelBaseHija {
+       public PanelEquipo() {
+           super("Equipo");
+           llaveAutomatica("ID_Equipo");                       // llave primaria que asigna MySQL
+           texto("Nombre_Equipo", "Nombre del equipo", 20);    // VARCHAR(20)
+           menu("ID_Ciudad", "Ciudad", "SELECT ID_Ciudad, Nombre_Ciudad FROM Ciudad ORDER BY Nombre_Ciudad");
+           armarPantalla();
+       }
+   }
+
+   Lo que puede declarar una tabla hija:
+     llaveAutomatica(columna)                  llave primaria con AUTO_INCREMENT
+     menu(columna, etiqueta, consulta)         llave foránea (el SELECT regresa el ID y el texto que se ve)
+     llaveMenu(columna, etiqueta, consulta)    llave foránea que también es parte de la llave primaria
+     texto(columna, etiqueta, maximo)          texto obligatorio
+     numero(columna, etiqueta, minimo, maximo) número entero obligatorio dentro de un rango
+     fecha(columna, etiqueta)                  fecha obligatoria AAAA-MM-DD
+     avisoRegla(nombreDeLaRegla, mensaje)      mensaje propio si falla un UNIQUE, un CHECK o la llave primaria (PRIMARY)
+   Y si necesita reglas de más de un campo, sobreescribe reglaExtra() (ver PanelContrato y PanelAlineacion).
+
+En los dos casos, regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
+
+   pestanas.addTab("Equipos", new PanelEquipo());
+
+   (y su import: import vista.tablas.PanelEquipo;)

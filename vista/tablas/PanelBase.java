@@ -8,6 +8,7 @@ package vista.tablas;
 import conexion.Conexion;
 import modelo.Sesion;
 import modelo.Bitacora;
+import modelo.Dependencias;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -249,6 +250,20 @@ public abstract class PanelBase extends JPanel {
             error("Selecciona un registro de la tabla.");
             return;
         }
+        //antes de preguntar,revisa si otras tablas tienen registros ligados a este por llave foranea
+        //ej. un estado que ya tiene ciudades: MySQL no lo deja borrar (ON DELETE RESTRICT),asi que se avisa y no se intenta
+        try {
+            String ligados = Dependencias.buscar(tabla, idColumna, idOriginal);
+            if (ligados != null) {
+                JOptionPane.showMessageDialog(this,
+                        "No se puede eliminar este registro porque está ligado por llave foránea con:\n\n"
+                                + ligados + "\n\nPrimero elimina esos registros o cámbialos a otro.",
+                        "Registro con datos ligados", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+        } catch (SQLException e) {
+            //si no se pudo revisar se sigue: MySQL de todos modos no deja borrar un registro con hijos y traducir() lo explica
+        }
         int r = JOptionPane.showConfirmDialog(this, "¿Seguro que deseas eliminar este registro?",
                 "Eliminar registro", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (r != JOptionPane.YES_OPTION) {
@@ -416,6 +431,7 @@ public abstract class PanelBase extends JPanel {
         switch (e.getErrorCode()) {
             case 1062:
                 return "Ya existe un registro con ese ID.";
+            case 1217://el mismo error que 1451,pero asi le llega al usuario APP_LIGA
             case 1451:
                 return "No se puede: hay registros en otras tablas que dependen de este registro.";
             case 1406:

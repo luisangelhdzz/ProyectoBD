@@ -3,6 +3,12 @@ package vista;
 import conexion.Conexion;
 import modelo.Sesion;
 import vista.tablas.PanelPosicion;
+import vista.tablas.PanelEstado;
+import vista.tablas.PanelPatrocinador;
+import vista.tablas.PanelCiudad;
+import vista.tablas.PanelContrato;
+import vista.tablas.PanelAlineacion;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
@@ -61,15 +67,20 @@ public class VentanaPrincipal extends JFrame {
         // ------------------------------------------------------------------
         JTabbedPane pestanas = new JTabbedPane();
         pestanas.addTab("Posiciones", new PanelPosicion());
+        pestanas.addTab("Estados", new PanelEstado());
+        pestanas.addTab("Patrocinadores", new PanelPatrocinador());
+        // Tablas hijas: heredan de PanelBaseHija y sus llaves foráneas se eligen con un menú desplegable
+        pestanas.addTab("Ciudades", new PanelCiudad());
+        pestanas.addTab("Contratos", new PanelContrato());
+        pestanas.addTab("Alineaciones", new PanelAlineacion());
         // Siguientes tablas, por ejemplo:
-        // pestanas.addTab("Ciudades", new PanelCiudad());
         // pestanas.addTab("Equipos", new PanelEquipo());
         // pestanas.addTab("Jugadores", new PanelJugador());
 
         JPanel raiz = new JPanel(new BorderLayout());
         raiz.add(barra, BorderLayout.NORTH);
         raiz.add(pestanas, BorderLayout.CENTER);
-        cambiarContenido(raiz, 860, 540);
+        cambiarContenido(raiz, 1000, 640);//mas grande para que quepan los formularios de las tablas hijas
     }
 
     private void cerrarSesion() {
