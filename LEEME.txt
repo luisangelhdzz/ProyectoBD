@@ -7,7 +7,8 @@ ProyectoBD/
   Main.java                      Arranca el programa
   usuarios_finales.sql           Tabla Usuario, columna ID_Usuario en todas las tablas y tabla Bitacora
   ejecutar.sh                    Compila y abre el programa
-  mysql-connector-j-26.7.0.jar   (el tuyo, cópialo aquí)
+  Lib/
+    mysql-connector-j-26.7.0.jar Conector de MySQL (también puede ir en la raíz del proyecto)
   conexion/
     Conexion.java                Conexión a MySQL (usuario APP_LIGA)
   modelo/
@@ -17,7 +18,9 @@ ProyectoBD/
     PanelLogin.java              Pantalla de inicio de sesión
     VentanaPrincipal.java        Ventana, barra con el usuario y una pestaña por tabla
     tablas/
-      PanelEstado.java           Tabla Estado: formulario, tabla, buscador, validaciones y CRUD
+      PanelBase.java             Clase base de todas las tablas: formulario, tabla, buscador,
+                                 validaciones, CRUD y bitácora (se escribe una sola vez)
+      PanelPosicion.java         Tabla Posicion: solo indica su tabla, sus columnas y el largo del nombre
 
 
 PASO 1: PREPARAR LA BASE (una sola vez)
@@ -26,12 +29,20 @@ PASO 1: PREPARAR LA BASE (una sola vez)
   mysql -u root -p < usuarios_finales.sql
 
 Se puede volver a ejecutar sin problema: lo que ya existe no se vuelve a crear.
-Si ya lo habías corrido antes, córrelo otra vez para que se cree la tabla Bitacora.
+Si ya lo habías corrido antes, córrelo otra vez para que se cree la tabla Bitacora
+y los usuarios nuevos.
 
-Crea la tabla Usuario con dos usuarios finales:
-  admin / admin123
-  luis  / luis123
-la tabla Bitacora y el usuario de MySQL APP_LIGA, que es con el que la aplicación se conecta por dentro.
+El script crea la tabla Usuario con estos usuarios finales:
+  admin   / admin123
+  luis    / luis123
+  jason   / jason123
+  alfredo / alfredo123
+
+También crea la tabla Bitacora y el usuario de MySQL APP_LIGA, que es con el que la
+aplicación se conecta por dentro.
+
+IMPORTANTE: el script agrega la columna ID_Usuario a las tablas existentes, así que
+las tablas (Estado, Posicion, Patrocinador, etc.) deben existir antes de correrlo.
 
 
 PASO 2: EJECUTAR
@@ -39,36 +50,50 @@ PASO 2: EJECUTAR
   cd ~/Downloads/ProyectoBD
   sh ejecutar.sh
 
-O a mano:
-  javac -encoding UTF-8 -cp mysql-connector-j-26.7.0.jar -d out Main.java conexion/*.java modelo/*.java vista/*.java vista/tablas/*.java
-  java -cp out:mysql-connector-j-26.7.0.jar Main
+El script busca el conector en Lib/ o en la raíz del proyecto.
+
+O a mano (desde la raíz del proyecto):
+  javac -encoding UTF-8 -cp Lib/mysql-connector-j-26.7.0.jar -d out Main.java conexion/*.java modelo/*.java vista/*.java vista/tablas/*.java
+  java -cp out:Lib/mysql-connector-j-26.7.0.jar Main
 
 Si tu conector tiene otro nombre, cámbialo en ejecutar.sh.
 
 
-VALIDACIONES DE LA TABLA ESTADO
--------------------------------
+VALIDACIONES DE LAS TABLAS
+--------------------------
   ID        Opcional al insertar (MySQL lo asigna). Si se escribe, debe ser un entero mayor que 0.
-            No puede quedar vacío al actualizar ni repetirse.
-  Nombre    Obligatorio, máximo 20 caracteres.
-  Actualizar y Eliminar piden seleccionar antes un estado de la tabla.
-  Eliminar pide confirmación y avisa si hay registros de otras tablas que dependen del estado.
+            No puede quedar vacío al actualizar ni repetirse. Máximo 10 dígitos.
+  Nombre    Obligatorio, con el largo máximo que cada tabla defina (Estado y Posicion: 20).
+  Actualizar y Eliminar piden seleccionar antes un registro de la tabla.
+  Eliminar pide confirmación. Si hay registros de otras tablas que dependen del registro,
+  MySQL no lo deja borrar y la aplicación lo avisa.
 
 Cada alta o cambio guarda en ID_Usuario quién hizo el movimiento.
 Además, altas, cambios y bajas quedan anotados en la tabla Bitacora (usuario, acción y fecha),
 así también se sabe quién eliminó un registro.
 
 
-CÓMO AGREGAR OTRA TABLA (ejemplo: Posicion)
--------------------------------------------
-1. Copia vista/tablas/PanelEstado.java como vista/tablas/PanelPosicion.java y cambia:
-   - el nombre de la clase y del constructor
-   - la tabla y las columnas en las consultas (Estado, ID_Estado, Nombre_Estado)
-   - los textos de las etiquetas y de los mensajes
-   - el nombre de la tabla en las llamadas a Bitacora.registrar("Estado", ...)
+CÓMO AGREGAR OTRA TABLA (ejemplo: Ciudad)
+-----------------------------------------
+Ya no hace falta copiar ninguna pantalla. Todo el comportamiento está en PanelBase.
 
-2. Regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
+1. Crea vista/tablas/PanelCiudad.java con este contenido (ajusta los datos):
 
-   pestanas.addTab("Posiciones", new PanelPosicion());
+   package vista.tablas;
 
-   (y su import: import vista.tablas.PanelPosicion;)
+   public class PanelCiudad extends PanelBase {
+       public PanelCiudad() {
+           super("Ciudad", "ID_Ciudad", "Nombre_Ciudad", "Nombre de la ciudad", 30);
+       }
+   }
+
+   Los parámetros son: tabla, columna ID, columna nombre, texto de la etiqueta, largo máximo del nombre.
+
+2. Agrega la columna ID_Usuario a la tabla en usuarios_finales.sql (ya viene con CALL
+   agregar_id_usuario para las tablas del proyecto; si es nueva, agrega un CALL igual).
+
+3. Regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
+
+   pestanas.addTab("Ciudades", new PanelCiudad());
+
+   (y su import: import vista.tablas.PanelCiudad;)
