@@ -11,6 +11,7 @@ package vista.tablas;
 import conexion.Conexion;
 import modelo.Bitacora;
 import modelo.Dependencias;
+import out.modelo.Ids;
 import modelo.Sesion;
 
 import javax.swing.*;
@@ -106,6 +107,9 @@ public abstract class PanelBaseHija extends JPanel {
     //es lo mismo que idOriginal en PanelBase,pero aqui la llave puede tener varias columnas,ej. Contrato (equipo,patrocinador)
     private Object[] llaveOriginal;
 
+    //true si otras tablas tienen llave foranea hacia esta (tabla padre): su ID ya no se puede cambiar
+    private boolean padre;
+
     protected PanelBaseHija(String tabla) {
         this.tabla = tabla;
     }
@@ -168,6 +172,7 @@ public abstract class PanelBaseHija extends JPanel {
 
     //la clase hija lo llama al final de su constructor,cuando ya declaro todos sus campos
     protected void armarPantalla() {
+        padre = Ids.esPadre(tabla);
         //una columna por campo y al final quien hizo el ultimo cambio
         String[] titulos = new String[campos.size() + 1];
         for (int i = 0; i < campos.size(); i++) {
@@ -394,6 +399,11 @@ public abstract class PanelBaseHija extends JPanel {
     }
 
     private void insertar() {
+        //si hay un registro seleccionado el formulario tiene sus datos: para agregar otro hay que limpiar primero
+        if (llaveOriginal != null) {
+            error("Hay un registro seleccionado. Usa Limpiar para agregar uno nuevo.");
+            return;
+        }
         if (!validar(false)) {
             return;
         }
@@ -502,7 +512,11 @@ public abstract class PanelBaseHija extends JPanel {
             switch (c.tipo) {
                 case ID:
                     if (texto.isEmpty()) {
-                        ps.setNull(hueco, Types.INTEGER);//MySQL asigna el numero
+                        //sin ID escrito: el mas chico libre a partir del 1
+                        ps.setInt(hueco, Ids.siguienteLibre(tabla, c.columna));
+                    } else if (padre && llaveOriginal != null) {
+                        //tabla padre al actualizar: se conserva el ID original
+                        ps.setInt(hueco, (Integer) llaveOriginal[0]);
                     } else {
                         ps.setInt(hueco, Integer.parseInt(texto));
                     }
@@ -656,6 +670,7 @@ public abstract class PanelBaseHija extends JPanel {
                 c.menu.setSelectedItem(valor);//la busca por ID (equals de Opcion)
             } else {
                 c.caja.setText(valor == null ? "" : valor.toString());
+                c.caja.setEnabled(c.tipo != Tipo.ID || !padre);//en una tabla padre el ID no se edita
             }
             if (c.llave) {
                 //de una llave foranea se guarda su ID,no su texto
@@ -672,6 +687,7 @@ public abstract class PanelBaseHija extends JPanel {
                 c.menu.setSelectedIndex(-1);
             } else {
                 c.caja.setText("");
+                c.caja.setEnabled(true);
             }
         }
         vista.clearSelection();

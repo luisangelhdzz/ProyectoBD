@@ -9,6 +9,7 @@ import conexion.Conexion;
 import modelo.Sesion;
 import modelo.Bitacora;
 import modelo.Dependencias;
+import out.modelo.Ids;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
@@ -55,6 +56,9 @@ public abstract class PanelBase extends JPanel {
     //hace falta porque si seleccionas el id 5 y lo cambias a 7 en el formulario,el UPDATE tiene que buscar la fila con el 5
     private Integer idOriginal;
 
+    //true si otras tablas tienen llave foranea hacia esta (tabla padre): su ID ya no se puede cambiar
+    private final boolean padre;
+
     //la clase hija llama a este constructor con super(...) y le pasa los datos de su tabla
     protected PanelBase(String tabla, String idColumna, String nombreColumna, String tituloNombre, int maximoNombre) {
         this.tabla = tabla;
@@ -78,6 +82,7 @@ public abstract class PanelBase extends JPanel {
         vista = new JTable(modelo);
         ordenador = new TableRowSorter<>(modelo);
 
+        padre = Ids.esPadre(tabla);
         setLayout(new BorderLayout(18, 14));
         setBorder(new EmptyBorder(18, 20, 18, 20));//para que nada quede pegado al borde
 
@@ -197,13 +202,18 @@ public abstract class PanelBase extends JPanel {
     }
 
     private void insertar() {
+        //si hay un registro seleccionado el formulario tiene sus datos: para agregar otro hay que limpiar primero
+        if (idOriginal != null) {
+            error("Hay un registro seleccionado. Usa Limpiar para agregar uno nuevo.");
+            return;
+        }
         //si algo esta mal,validar muestra el mensaje en rojo y regresa false,asi nunca se manda a mysql un dato invalido
         if (!validar(false)) {
             return;
         }
         String sql = "INSERT INTO " + tabla + " (" + idColumna + ", " + nombreColumna + ", ID_Usuario) VALUES (?, ?, ?)";
         try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            asignar(ps);//llena los tres ?
+            asignar(ps, idParaInsertar());//llena los tres ?
             ps.executeUpdate();//se guarda en mysql
             Bitacora.registrar(tabla, "INSERTAR", txtNombre.getText().trim());
             cargar();//vuelve a hacer select para que el registro nuevo aparezca con su id y ultimo cambio por
@@ -223,10 +233,12 @@ public abstract class PanelBase extends JPanel {
         if (!validar(true)) {
             return;
         }
+        //en una tabla padre el ID no cambia: se vuelve a poner el original aunque la caja se hubiera editado
+        int idNuevo = padre ? idOriginal : Integer.parseInt(txtId.getText().trim());
         //? 1 id nuevo,? 2 nombre,? 3 quien hizo el cambio,? 4 cual renglon cambiar
         String sql = "UPDATE " + tabla + " SET " + idColumna + " = ?, " + nombreColumna + " = ?, ID_Usuario = ? WHERE " + idColumna + " = ?";
         try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            asignar(ps);
+            asignar(ps, idNuevo);
             ps.setInt(4, idOriginal);//llena el cuarto hueco a mano
             //1 encontro el registro y lo cambio,0 no existe ninguno con ese id
             int filas = ps.executeUpdate();
@@ -283,14 +295,15 @@ public abstract class PanelBase extends JPanel {
         }
     }
 
-    //toma lo que escribiste en el formulario y lo pone en los huecos ?
-    private void asignar(PreparedStatement ps) throws SQLException {
+    //el ID que tendra un registro nuevo: el que escribiste o,si la caja esta vacia,el mas chico libre
+    private int idParaInsertar() throws SQLException {
         String id = txtId.getText().trim();
-        if (id.isEmpty()) {
-            ps.setNull(1, Types.NULL); // MySQL asigna el número
-        } else {
-            ps.setInt(1, Integer.parseInt(id));
-        }
+        return id.isEmpty() ? Ids.siguienteLibre(tabla, idColumna) : Integer.parseInt(id);
+    }
+
+    //pone en los huecos ? el ID,el nombre y el usuario que hace el cambio
+    private void asignar(PreparedStatement ps, int id) throws SQLException {
+        ps.setInt(1, id);
         ps.setString(2, txtNombre.getText().trim());
         ps.setInt(3, Sesion.getIdUsuario());//el id del usuario que inicio sesion
     }
@@ -385,12 +398,14 @@ public abstract class PanelBase extends JPanel {
         int f = vista.convertRowIndexToModel(fila);//indice real en el modelo,por si la tabla esta ordenada o filtrada
         idOriginal = (Integer) modelo.getValueAt(f, 0);
         txtId.setText(idOriginal.toString());
+        txtId.setEnabled(!padre);//en una tabla padre el ID se ve pero no se puede editar
         txtNombre.setText((String) modelo.getValueAt(f, 1));
         lblMensaje.setText(" ");
     }
 
     private void limpiar() {
         txtId.setText("");
+        txtId.setEnabled(true);
         txtNombre.setText("");
         vista.clearSelection();
         idOriginal = null;//con null indicamos que no hay ningun registro en edicion
