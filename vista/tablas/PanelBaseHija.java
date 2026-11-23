@@ -11,6 +11,7 @@ package vista.tablas;
 import conexion.Conexion;
 import modelo.Bitacora;
 import modelo.Dependencias;
+import modelo.Ids;
 import modelo.Sesion;
 
 import javax.swing.*;
@@ -30,7 +31,10 @@ import javax.swing.text.DocumentFilter;
 import java.awt.*;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,8 +47,20 @@ public abstract class PanelBaseHija extends JPanel {
     private static final int MAXIMO_ID = 10;//igual que en PanelBase: el int mas grande de java tiene 10 digitos
 
     //los tipos de campo que puede tener una tabla hija
-    //ID = llave primaria que asigna MySQL,TEXTO = varchar,NUMERO = entero con rango,FECHA = date,MENU = llave foranea
-    private enum Tipo { ID, TEXTO, NUMERO, FECHA, MENU }
+    //ID = llave primaria que asigna MySQL,
+    // TEXTO = varchar,
+    // NUMERO = entero con rango,
+    // FECHA = date,
+    // MENU = llave foranea
+    //FECHAHORA = datetime (fecha y hora),ej. Fecha_Partido
+    private enum Tipo { ID, TEXTO, NUMERO, FECHA, FECHAHORA, MENU }
+
+    //formato de las columnas datetime que se escribe en el formulario,ej. "2026-03-15 19:30"
+    //STRICT para que no acepte fechas que no existen (ej. 2026-02-30) ni horas como 25:00
+    private static final DateTimeFormatter FORMATO_FECHA_HORA =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm").withResolverStyle(ResolverStyle.STRICT);
+    //el formato que MySQL recibe,con segundos
+    private static final DateTimeFormatter FORMATO_MYSQL = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss");
 
     //un campo es una columna de la tabla en MySQL junto con la caja o el menu que la edita en el formulario
     private static class Campo {
@@ -106,6 +122,9 @@ public abstract class PanelBaseHija extends JPanel {
     //es lo mismo que idOriginal en PanelBase,pero aqui la llave puede tener varias columnas,ej. Contrato (equipo,patrocinador)
     private Object[] llaveOriginal;
 
+    //true si otras tablas tienen llave foranea hacia esta (tabla padre): su ID ya no se puede cambiar
+    private boolean padre;
+
     protected PanelBaseHija(String tabla) {
         this.tabla = tabla;
     }
@@ -155,6 +174,14 @@ public abstract class PanelBaseHija extends JPanel {
         limitar(c.caja, 10, "[0-9-]*");//"2026-03-15" son 10 caracteres,solo digitos y guiones
     }
 
+    //fecha y hora obligatorias para una columna DATETIME: AAAA-MM-DD HH:MM (hora de 24 horas)
+    //MySQL regresa "2026-03-15 19:30:00",el limite de 16 caracteres le quita los segundos al ponerlo en la caja
+    protected void fechaHora(String columna, String etiqueta) {
+        Campo c = agregar(Tipo.FECHAHORA, columna, etiqueta, false);
+        c.caja = new JTextField(18);
+        limitar(c.caja, 16, "[0-9: -]*");//"2026-03-15 19:30" son 16 caracteres,digitos,guion,dos puntos y espacio
+    }
+
     //mensaje que se muestra cuando MySQL rechaza un registro por una regla UNIQUE,CHECK o la llave primaria (PRIMARY)
     protected void avisoRegla(String nombreRegla, String mensaje) {
         avisos.put(nombreRegla, mensaje);
@@ -168,6 +195,7 @@ public abstract class PanelBaseHija extends JPanel {
 
     //la clase hija lo llama al final de su constructor,cuando ya declaro todos sus campos
     protected void armarPantalla() {
+        padre = Ids.esPadre(tabla);
         //una columna por campo y al final quien hizo el ultimo cambio
         String[] titulos = new String[campos.size() + 1];
         for (int i = 0; i < campos.size(); i++) {
@@ -313,6 +341,8 @@ public abstract class PanelBaseHija extends JPanel {
                 return c.etiqueta + " * (del " + c.minimo + " al " + c.maximo + ")";
             case FECHA:
                 return c.etiqueta + " * (AAAA-MM-DD)";
+            case FECHAHORA:
+                return c.etiqueta + " * (AAAA-MM-DD HH:MM)";
             default:
                 return c.etiqueta + " *";
         }
@@ -390,10 +420,20 @@ public abstract class PanelBaseHija extends JPanel {
             //en las llaves foraneas se pone la opcion del menu con ese ID,que ya trae el texto que se ve
             return c.tipo == Tipo.MENU ? buscarOpcion(c, numero) : numero;
         }
-        return resultado.getString(posicion);//TEXTO y FECHA,la fecha llega como "2026-03-15"
+        String valor = resultado.getString(posicion);//TEXTO y FECHA,la fecha llega como "2026-03-15"
+        //FECHAHORA llega como "2026-03-15 19:30:00",en la tabla se ve sin los segundos
+        if (c.tipo == Tipo.FECHAHORA && valor != null && valor.length() > 16) {
+            valor = valor.substring(0, 16);
+        }
+        return valor;
     }
 
     private void insertar() {
+        //si hay un registro seleccionado el formulario tiene sus datos: para agregar otro hay que limpiar primero
+        if (llaveOriginal != null) {
+            error("Hay un registro seleccionado. Usa Limpiar para agregar uno nuevo.");
+            return;
+        }
         if (!validar(false)) {
             return;
         }
@@ -502,7 +542,11 @@ public abstract class PanelBaseHija extends JPanel {
             switch (c.tipo) {
                 case ID:
                     if (texto.isEmpty()) {
-                        ps.setNull(hueco, Types.INTEGER);//MySQL asigna el numero
+                        //sin ID escrito: el mas chico libre a partir del 1
+                        ps.setInt(hueco, Ids.siguienteLibre(tabla, c.columna));
+                    } else if (padre && llaveOriginal != null) {
+                        //tabla padre al actualizar: se conserva el ID original
+                        ps.setInt(hueco, (Integer) llaveOriginal[0]);
                     } else {
                         ps.setInt(hueco, Integer.parseInt(texto));
                     }
@@ -515,6 +559,9 @@ public abstract class PanelBaseHija extends JPanel {
                     break;
                 case FECHA:
                     ps.setString(hueco, leerFecha(texto).toString());//MySQL recibe "2026-03-15"
+                    break;
+                case FECHAHORA:
+                    ps.setString(hueco, leerFechaHora(texto).format(FORMATO_MYSQL));//MySQL recibe "2026-03-15 19:30:00"
                     break;
                 default:
                     ps.setString(hueco, texto);
@@ -589,6 +636,9 @@ public abstract class PanelBaseHija extends JPanel {
             case FECHA:
                 return leerFecha(texto) != null ? null
                         : "«" + c.etiqueta + "» no es una fecha válida. Usa el formato AAAA-MM-DD, por ejemplo 2026-03-15.";
+            case FECHAHORA:
+                return leerFechaHora(texto) != null ? null
+                        : "«" + c.etiqueta + "» no es válida. Usa el formato AAAA-MM-DD HH:MM (hora de 24 horas), por ejemplo 2026-03-15 19:30.";
             default:
                 return null;
         }
@@ -610,6 +660,17 @@ public abstract class PanelBaseHija extends JPanel {
         try {
             LocalDate fecha = LocalDate.parse(texto);
             return fecha.getYear() >= 1000 ? fecha : null;
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
+
+    //convierte "2026-03-15 19:30" en fecha y hora,o regresa null si no es real (ej. 2026-02-30 o las 25:00)
+    //el año debe tener 4 digitos,igual que en leerFecha
+    private static LocalDateTime leerFechaHora(String texto) {
+        try {
+            LocalDateTime fechaHora = LocalDateTime.parse(texto, FORMATO_FECHA_HORA);
+            return fechaHora.getYear() >= 1000 ? fechaHora : null;
         } catch (DateTimeParseException e) {
             return null;
         }
@@ -656,6 +717,7 @@ public abstract class PanelBaseHija extends JPanel {
                 c.menu.setSelectedItem(valor);//la busca por ID (equals de Opcion)
             } else {
                 c.caja.setText(valor == null ? "" : valor.toString());
+                c.caja.setEnabled(c.tipo != Tipo.ID || !padre);//en una tabla padre el ID no se edita
             }
             if (c.llave) {
                 //de una llave foranea se guarda su ID,no su texto
@@ -672,6 +734,7 @@ public abstract class PanelBaseHija extends JPanel {
                 c.menu.setSelectedIndex(-1);
             } else {
                 c.caja.setText("");
+                c.caja.setEnabled(true);
             }
         }
         vista.clearSelection();

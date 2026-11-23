@@ -8,6 +8,7 @@ import vista.tablas.PanelPatrocinador;
 import vista.tablas.PanelCiudad;
 import vista.tablas.PanelContrato;
 import vista.tablas.PanelAlineacion;
+import vista.tablas.PanelPartido;
 
 import javax.swing.*;
 import java.awt.*;
@@ -72,6 +73,7 @@ public class VentanaPrincipal extends JFrame {
         // Tablas hijas: heredan de PanelBaseHija y sus llaves foráneas se eligen con un menú desplegable
         pestanas.addTab("Ciudades", new PanelCiudad());
         pestanas.addTab("Contratos", new PanelContrato());
+        pestanas.addTab("Partidos", new PanelPartido());
         pestanas.addTab("Alineaciones", new PanelAlineacion());
         // Siguientes tablas, por ejemplo:
         // pestanas.addTab("Equipos", new PanelEquipo());
