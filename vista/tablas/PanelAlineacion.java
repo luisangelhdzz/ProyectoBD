@@ -4,7 +4,7 @@ import java.sql.SQLException;
 
 //tabla hija de Partido,Equipo,Jugador y Posicion: quien juega cada partido,en que posicion y en que turno al bat
 //su llave primaria es (equipo, jugador, partido): un jugador aparece una sola vez en la alineacion de cada partido
-public class PanelAlineacion extends PanelBaseHija {
+public class PanelAlineacion extends PanelTabla {
     public PanelAlineacion() {
         super("Alineacion");
         //el partido se ve como "1 - Sultanes vs Leones 2025-05-16"

@@ -5,11 +5,10 @@
 
 package modelo;
 
-import conexion.Conexion;
+import conexion.BaseDatos;
 
-import java.sql.PreparedStatement;//una consulta sql con huecos ? que se llenan despues
-import java.sql.ResultSet;//los renglones que dvuelve un select
 import java.sql.SQLException;
+import java.util.List;
 
 
 public final class Sesion {
@@ -25,23 +24,17 @@ public final class Sesion {
     public static boolean iniciar(String usuario, String contrasena) throws SQLException {
         //la consulta busca un usuario cuyo login y contrasena coincidan
         //en la tabla las contrasenas no se guardan tal cual si no convertidas en sha.....
-        String sql = "SELECT ID_Usuario, Nombre_Usuario, Login_Usuario FROM Usuario "
-                + "WHERE Login_Usuario = ? AND Contrasena_Usuario = SHA2(?, 256)";
-        try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            ps.setString(1, usuario);//llena el hueco con usuario
-            ps.setString(2, contrasena);//llena el hueco con contrasena
-            //guarda el resultado en un ResultSet,que es como una tabla en memoria con los renglones que devolvio el select
-            try (ResultSet resultado = ps.executeQuery()) {
-                if (resultado.next()) {//intenta pasar al primer renglon,si existe devuelve true osea que encontro un usuario con ese login y contra,
-                    //si no existe devuelve false,osea que no encontro ningun usuario con ese login y contra
-                    idUsuario = resultado.getInt("ID_Usuario");
-                    nombre = resultado.getString("Nombre_Usuario");
-                    login = resultado.getString("Login_Usuario");
-                    return true;//si no entro al if el login fallo
-                }
-            }
+        List<Object[]> encontrados = BaseDatos.consultar(
+                "SELECT ID_Usuario, Nombre_Usuario, Login_Usuario FROM Usuario "
+                        + "WHERE Login_Usuario = ? AND Contrasena_Usuario = SHA2(?, 256)", usuario, contrasena);
+        if (encontrados.isEmpty()) {
+            return false;//no hay ningun usuario con ese login y contrasena
         }
-        return false;
+        Object[] renglon = encontrados.get(0);
+        idUsuario = ((Number) renglon[0]).intValue();
+        nombre = (String) renglon[1];
+        login = (String) renglon[2];
+        return true;
     }
 
     public static void cerrar() {

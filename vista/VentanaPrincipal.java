@@ -64,13 +64,13 @@ public class VentanaPrincipal extends JFrame {
 
         // ------------------------------------------------------------------
         // AQUÍ SE REGISTRAN LAS TABLAS: cada tabla es una pestaña
-        // Para agregar otra tabla: crea su clase en vista/tablas y agrégala aquí.
+        // Para agregar otra tabla: crea su clase en vista/tablas (hereda de PanelTabla) y agrégala aquí.
         // ------------------------------------------------------------------
         JTabbedPane pestanas = new JTabbedPane();
         pestanas.addTab("Posiciones", new PanelPosicion());
         pestanas.addTab("Estados", new PanelEstado());
         pestanas.addTab("Patrocinadores", new PanelPatrocinador());
-        // Tablas hijas: heredan de PanelBaseHija y sus llaves foráneas se eligen con un menú desplegable
+        // Todas las tablas heredan de PanelTabla (las hijas eligen sus llaves foráneas con un menú desplegable)
         pestanas.addTab("Ciudades", new PanelCiudad());
         pestanas.addTab("Contratos", new PanelContrato());
         pestanas.addTab("Partidos", new PanelPartido());

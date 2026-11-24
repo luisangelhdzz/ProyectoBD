@@ -1,7 +1,11 @@
 package vista.tablas;
 
-public class PanelPosicion extends PanelBase {
-    public PanelPosicion(){
-super("Posicion", "ID_Posicion", "Nombre_Posicion", "Nombre de la posición", 20);
+//tabla padre: solo ID y nombre. Todo lo demas lo hace PanelTabla
+public class PanelPosicion extends PanelTabla {
+    public PanelPosicion() {
+        super("Posicion");
+        llaveAutomatica("ID_Posicion");
+        texto("Nombre_Posicion", "Nombre de la posición", 20);
+        armarPantalla();
     }
 }

@@ -11,10 +11,10 @@ import java.time.format.DateTimeFormatter;
 
 //pantalla "Programar Partidos": tabla hija de Temporada,Estadio y Equipo (el equipo dos veces: local y visitante)
 //cada partido tiene su fecha y hora,y las carreras de cada equipo
-//hereda de PanelBaseHija,asi que ya trae el formulario,la tabla,el buscador,las validaciones,la bitacora
+//hereda de PanelTabla,asi que ya trae el formulario,la tabla,el buscador,las validaciones,la bitacora
 //y el aviso de llave foranea al eliminar (un partido con alineaciones o carreras no se puede borrar)
 //para ver los juegos de un equipo se escribe su nombre en el buscador de arriba
-public class PanelPartido extends PanelBaseHija {
+public class PanelPartido extends PanelTabla {
     public PanelPartido() {
         super("Partido");
         llaveAutomatica("ID_Partido");
