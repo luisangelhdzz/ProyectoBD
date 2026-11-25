@@ -1,19 +1,9 @@
-//esta es la clase BASE de las pantallas de las tablas HIJAS (Ciudad, Contrato, Alineacion...)
-//una tabla hija es la que tiene llaves foraneas: guarda el ID de un registro de otra tabla,su tabla padre
-//cada llave foranea se elige con un menu desplegable (JComboBox) que se llena con los registros de la tabla padre,
-//asi solo se puede elegir algo que si existe y MySQL nunca marca el error de llave foranea (1452)
-//la clase hija solo declara sus campos en el constructor (columna,etiqueta y tipo) y esta clase hace todo lo demas:
-//el formulario,la tabla,el buscador,las validaciones,el CRUD,la bitacora y los mensajes
-//PanelBase sigue siendo la base de las tablas padre,las que solo tienen ID y nombre
-
 package vista.tablas;
-
-import conexion.Conexion;
+import conexion.BaseDatos;
 import modelo.Bitacora;
 import modelo.Dependencias;
 import modelo.Ids;
 import modelo.Sesion;
-
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;
 import javax.swing.border.EmptyBorder;
@@ -27,166 +17,180 @@ import javax.swing.text.AbstractDocument;
 import javax.swing.text.AttributeSet;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DocumentFilter;
-
 import java.awt.*;
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
-public abstract class PanelBaseHija extends JPanel {
 
-    private static final Color VERDE = new Color(0, 128, 0);
-    private static final int MAXIMO_ID = 10;//igual que en PanelBase: el int mas grande de java tiene 10 digitos
+//declaracion de la clase
+//es como un molde,trae todo lo que es igual en todas las pantallas,pero no es una pantalla terminada
+//lo que trae hecho
+//El formulario y la tabla.
+//El buscador.
+//Los botones Insertar, Actualizar, Eliminar y Limpiar.
+//Las validaciones.
+//El CRUD contra MySQL.
+//La bitácora.
+//El aviso de llave foránea al eliminar.
+public abstract class PanelTabla extends JPanel {
 
-    //los tipos de campo que puede tener una tabla hija
-    //ID = llave primaria que asigna MySQL,TEXTO = varchar,NUMERO = entero con rango,FECHA = date,MENU = llave foranea
-    private enum Tipo { ID, TEXTO, NUMERO, FECHA, MENU }
-
-    //un campo es una columna de la tabla en MySQL junto con la caja o el menu que la edita en el formulario
+    private static final Color VERDE = new Color(0, 128, 0);//constante para el color verde de los mensajes de éxito
+    private static final int MAXIMO_ID = 10;//constante para el tamaño máximo del ID
+    //un enum es una lista cerrada de opciones, en este caso los tipos de datos que puede tener un campo
+    //sirve para aue el codigo decida que hacer segun el tipo de campo
+    //por ejemplo en valores() hay un switch (c.tipo) que si es fecha convierte la fecha>
+    private enum Tipo { ID, TEXTO, NUMERO, FECHA, FECHAHORA, MENU }
+    //el patron significa
+    //uuuu: año de 4 dígitos.
+    //MM: mes (con M mayúscula).
+    //dd: día.
+    //HH: hora de 24 horas (con H mayúscula).
+    //mm: minutos (con m minúscula). Ojo: MM es mes y mm es minutos.
+    //.withResolverStyle(ResolverStyle.STRICT) hace el formato estricto:
+    private static final DateTimeFormatter FORMATO_FECHA_HORA =
+            DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm").withResolverStyle(ResolverStyle.STRICT);
+            //es la regla para escribir la fecha hacia mysql,(esta lleva segundos)
+            //este formato apaga lose segundos, porque en la pantalla no se escriben segundos, solo minutos
+    private static final DateTimeFormatter FORMATO_MYSQL = DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss");
+    //es la ficha de una columna de la tabla de mysql,junto con la caja o el menu que lo edita en pantalla
+    //no todos los datos se usan siempre,cada tipo de campo llena solo lo que necesita,lo demas se queda en su valor por defecto de java.
     private static class Campo {
         Tipo tipo;
-        String columna;//nombre de la columna en MySQL,ej. "ID_Estado"
-        String etiqueta;//como se llama en el formulario,en la tabla y en los mensajes,ej. "Estado"
-        boolean llave;//true si la columna es parte de la llave primaria
-        int minimo;//NUMERO: el valor mas chico permitido
-        int maximo;//TEXTO: maximo de caracteres,NUMERO: el valor mas grande permitido
-        String consulta;//MENU: el SELECT que llena el menu,primero el ID y luego el texto que se ve
-        JTextField caja;//para ID,TEXTO,NUMERO y FECHA
-        JComboBox<Opcion> menu;//para MENU
+        String columna;
+        String etiqueta;
+        boolean llave;
+        int minimo;
+        int maximo;
+        String consulta;
+        JTextField caja;
+        //el <opcion> significa que el menu guarda objetos de tipo Opcion,una clase pequena que hicimos
+        JComboBox<Opcion> menu;//menu depslegable
     }
 
-    //una opcion del menu desplegable: el ID que se guarda en MySQL y el texto que se ve,ej. "6 - Nuevo León"
-    //tambien es lo que se pone en las celdas de la tabla de la pantalla en las columnas de llaves foraneas
+    //representa una opcion del menu desplegable,cada renglon al abrirr un menu es un objeto opcion
     private static class Opcion {
-        final int id;
-        final String texto;
-
-        Opcion(int id, String texto) {
+        //un menu de llave foranea necesita dos cosas al mismo tiempo,lo que se ve y lo que se guarda en mysql
+        final int id;//el numero que se guarda en mysql
+        final String texto;//lo que se muestra en pantalla
+        Opcion(int id, String texto) {//constrcutor
             this.id = id;
             this.texto = texto;
         }
-
-        //lo que muestran el menu y la tabla
-        @Override
+        @Override//estoy reemplazando un metodo que ya existe(toString)
         public String toString() {
             return texto;
         }
-
-        //dos opciones son iguales si tienen el mismo ID,asi el menu encuentra la opcion al seleccionar un renglon
-        @Override
+        @Override//dos objetos sin iguales si tienen el mismo id aunque sean objetos distintos
+        //puede llegar cualquier otra cosa por eso el parametro es object
         public boolean equals(Object otro) {
+            //si lo que llego es realmente una opcion,si es texto o numero responde false
+            // && solo si lo anterior fue true(es opcion) sigue
+            //y convierte otro a opcion para poderr leer el id y comparar
             return otro instanceof Opcion && ((Opcion) otro).id == id;
         }
-
-        @Override
+        @Override//si dos objetos son iguales deben tener el mismo hashcode,por eso lo hacemos igual al id
         public int hashCode() {
             return id;
         }
     }
-
-    private final String tabla;//nombre de la tabla en MySQL,ej. "Ciudad"
-    private final List<Campo> campos = new ArrayList<>();//en el orden en que los declara la clase hija
-    //mensajes propios para cuando falla una regla UNIQUE o CHECK,por el nombre de la regla,ej. "UQ_Alineacion_Orden"
+    private final String tabla;//el nombre de la tabla en mysql
+    //la lista de fichas campo,en el orden en que la pantalla hija las declara
+    //una lista que solo acepta objetos Campo
+    //crea la lista vacia,pero no la puede cambiar de lugar,solo agregar o quitar elementos
+    private final List<Campo> campos = new ArrayList<>();//
+    //un map guarda parejas de clave -> valor,como un diccionario
+    //aqui lapareja es el nombre de la regla de mysql -> mensaje para el usuario
+    //cuando mysql rechaza un registro traducir () busca en este map y muestra el mensaje en ves del error tecnico
     private final Map<String, String> avisos = new LinkedHashMap<>();
-
+    //otro diccionario nombre de la columna -> pintor de colores de esa columna
+    private final Map<String, ColorColumna> colores = new LinkedHashMap<>();
+    //la caja del buscador de arriba,el 18 es su ancho aproximado en caracteres y no limita lo que puedes escriibir
     private final JTextField txtBuscar = new JTextField(18);
+    //La etiqueta que dice "5 registros" o "2 de 5 registros". Empieza vacía y actualizarConteo() le pone el texto.
     private final JLabel lblConteo = new JLabel();
+    //La etiqueta de mensajes debajo de los botones, donde salen en verde los éxitos y en rojo los errores. Empieza con un espacio, no vacía. Una etiqueta vacía mide cero de alto, y al aparecer el primer mensaje todo el formulario daría un salto. Con el espacio, ya ocupa su lugar.
     private final JLabel lblMensaje = new JLabel(" ");
-
-    //se crean en armarPantalla() porque las columnas dependen de los campos que declaro la clase hija
-    private DefaultTableModel modelo;
-    private JTable vista;
+    private DefaultTableModel modelo;//los datos,las filas y las columnas en memoria
+    private JTable vista;//el componente que dibuja esos datos en pantalla
     private TableRowSorter<DefaultTableModel> ordenador;
+    private Object[] llaveOriginal;//los valores de la llave primaria del registro seleccionado,tal como estaban antes de editarlo
+    //es un arreglo porque puede tener varias columnas
+    //para que sirve?
+    //si cambias en el formulario un dato de la llave el UPDATE necesita ecnontrar la fila con el valor viejo,ese valor viejo esta aqui y se usa en ek where
+    private boolean padre;//es true si otras tablas apuntan a esta llave foranea
 
-    //los valores de la llave primaria del registro seleccionado,tal como estaban antes de editarlo
-    //es lo mismo que idOriginal en PanelBase,pero aqui la llave puede tener varias columnas,ej. Contrato (equipo,patrocinador)
-    private Object[] llaveOriginal;
-
-    //true si otras tablas tienen llave foranea hacia esta (tabla padre): su ID ya no se puede cambiar
-    private boolean padre;
-
-    protected PanelBaseHija(String tabla) {
+    
+    protected PanelTabla(String tabla) {
         this.tabla = tabla;
     }
-
-    // ==================================================================
-    // LO QUE USA LA CLASE HIJA PARA DECLARAR SUS CAMPOS
-    // ==================================================================
-
-    //llave primaria numerica que MySQL asigna solo (AUTO_INCREMENT),ej. ID_Ciudad
     protected void llaveAutomatica(String columna) {
         Campo c = agregar(Tipo.ID, columna, "ID", true);
         c.caja = new JTextField(18);
         limitar(c.caja, MAXIMO_ID, "[0-9]*");
     }
-
-    //llave foranea normal que se elige con un menu,ej. ID_Estado en Ciudad
     protected void menu(String columna, String etiqueta, String consulta) {
         agregarMenu(columna, etiqueta, consulta, false);
     }
-
-    //llave foranea que ademas es parte de la llave primaria,ej. ID_Equipo y ID_Patrocinador en Contrato
     protected void llaveMenu(String columna, String etiqueta, String consulta) {
         agregarMenu(columna, etiqueta, consulta, true);
     }
-
-    //texto obligatorio con un maximo de caracteres (el tamano del VARCHAR)
     protected void texto(String columna, String etiqueta, int maximo) {
         Campo c = agregar(Tipo.TEXTO, columna, etiqueta, false);
         c.maximo = maximo;
         c.caja = new JTextField(18);
-        limitar(c.caja, maximo, null);//null: acepta cualquier caracter
+        limitar(c.caja, maximo, null);
     }
-
-    //numero entero obligatorio entre un minimo y un maximo,ej. el orden al bat del 1 al 9
     protected void numero(String columna, String etiqueta, int minimo, int maximo) {
         Campo c = agregar(Tipo.NUMERO, columna, etiqueta, false);
         c.minimo = minimo;
         c.maximo = maximo;
         c.caja = new JTextField(18);
-        limitar(c.caja, String.valueOf(maximo).length(), "[0-9]*");//9 tiene un digito,asi que deja escribir uno
+        limitar(c.caja, String.valueOf(maximo).length(), "[0-9]*");
     }
-
-    //fecha obligatoria con el formato de MySQL: AAAA-MM-DD
     protected void fecha(String columna, String etiqueta) {
         Campo c = agregar(Tipo.FECHA, columna, etiqueta, false);
         c.caja = new JTextField(18);
-        limitar(c.caja, 10, "[0-9-]*");//"2026-03-15" son 10 caracteres,solo digitos y guiones
+        limitar(c.caja, 10, "[0-9-]*");
     }
-
-    //mensaje que se muestra cuando MySQL rechaza un registro por una regla UNIQUE,CHECK o la llave primaria (PRIMARY)
+    protected void fechaHora(String columna, String etiqueta) {
+        Campo c = agregar(Tipo.FECHAHORA, columna, etiqueta, false);
+        c.caja = new JTextField(18);
+        limitar(c.caja, 16, "[0-9: -]*");
+    }
     protected void avisoRegla(String nombreRegla, String mensaje) {
         avisos.put(nombreRegla, mensaje);
     }
-
-    //reglas propias de cada tabla que no son de un solo campo,ej. que la fecha de fin no sea antes que la de inicio
-    //la clase hija la sobreescribe si las necesita,regresa el problema o null si todo esta bien
+    protected void colorear(String columna, Color color, Predicate<String> cuando) {
+        colores.computeIfAbsent(columna, k -> new ColorColumna()).agregar(cuando, color);
+    }
+    protected void colorear(String columna, Color color, String... valores) {
+        colorear(columna, color, texto -> java.util.Arrays.asList(valores).contains(texto));
+    }
     protected String reglaExtra() throws SQLException {
         return null;
     }
-
-    //la clase hija lo llama al final de su constructor,cuando ya declaro todos sus campos
     protected void armarPantalla() {
         padre = Ids.esPadre(tabla);
-        //una columna por campo y al final quien hizo el ultimo cambio
         String[] titulos = new String[campos.size() + 1];
         for (int i = 0; i < campos.size(); i++) {
             titulos[i] = campos.get(i).etiqueta;
         }
         titulos[campos.size()] = "Último cambio por";
-
         modelo = new DefaultTableModel(titulos, 0) {
             @Override
             public boolean isCellEditable(int fila, int columna) {
                 return false;
             }
-
-            //las columnas de numeros se ordenan como numeros (1, 2, 10) y no como texto (1, 10, 2)
             @Override
             public Class<?> getColumnClass(int columna) {
                 if (columna < campos.size()) {
@@ -200,53 +204,27 @@ public abstract class PanelBaseHija extends JPanel {
         };
         vista = new JTable(modelo);
         ordenador = new TableRowSorter<>(modelo);
-
         setLayout(new BorderLayout(18, 14));
         setBorder(new EmptyBorder(18, 20, 18, 20));
         add(construirEncabezado(), BorderLayout.NORTH);
         add(construirFormulario(), BorderLayout.WEST);
         add(construirTabla(), BorderLayout.CENTER);
-
-        //cada vez que se abre la pestana se vuelven a leer los menus y la tabla,
-        //asi aparece en los menus lo que agregaste en otra pestana (ej. un estado nuevo en el menu de Ciudad)
         addAncestorListener(new AncestorListener() {
             public void ancestorAdded(AncestorEvent e) { cargar(); }
             public void ancestorRemoved(AncestorEvent e) { }
             public void ancestorMoved(AncestorEvent e) { }
         });
     }
-
-    // ==================================================================
-    // AYUDAS PARA reglaExtra() DE LA CLASE HIJA
-    // ==================================================================
-
-    //el ID de lo que esta elegido en el menu de esa columna,ej. idElegido("ID_Equipo")
     protected Integer idElegido(String columna) {
         Opcion o = (Opcion) buscarCampo(columna).menu.getSelectedItem();
         return o == null ? null : o.id;
     }
-
-    //la fecha escrita en la caja de esa columna (ya se reviso que sea valida)
     protected LocalDate fechaEscrita(String columna) {
         return leerFecha(buscarCampo(columna).caja.getText().trim());
     }
-
-    //true si el SELECT regresa al menos un renglon,los ? se llenan con los valores en orden
     protected boolean existe(String sql, Object... valores) throws SQLException {
-        try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            for (int i = 0; i < valores.length; i++) {
-                ps.setObject(i + 1, valores[i]);
-            }
-            try (ResultSet resultado = ps.executeQuery()) {
-                return resultado.next();
-            }
-        }
+        return BaseDatos.existe(sql, valores);
     }
-
-    // ==================================================================
-    // PANTALLA
-    // ==================================================================
-
     private JComponent construirEncabezado() {
         JPanel enc = new JPanel(new BorderLayout());
         enc.add(lblConteo, BorderLayout.WEST);
@@ -261,8 +239,6 @@ public abstract class PanelBaseHija extends JPanel {
         enc.add(buscar, BorderLayout.EAST);
         return enc;
     }
-
-    //igual que en PanelBase,pero las cajas y menus salen de la lista de campos
     private JComponent construirFormulario() {
         JPanel form = new JPanel(new GridBagLayout());
         form.setBorder(new CompoundBorder(BorderFactory.createTitledBorder("Datos del registro"), new EmptyBorder(8, 10, 8, 10)));
@@ -270,14 +246,12 @@ public abstract class PanelBaseHija extends JPanel {
         g.gridx = 0;
         g.fill = GridBagConstraints.HORIZONTAL;
         g.weightx = 1;
-
         for (Campo c : campos) {
             g.insets = new Insets(0, 0, 4, 0);
             form.add(new JLabel(textoEtiqueta(c)), g);
             g.insets = new Insets(0, 0, 10, 0);
             form.add(c.tipo == Tipo.MENU ? c.menu : c.caja, g);
         }
-
         JButton btnInsertar = new JButton("Insertar");
         JButton btnActualizar = new JButton("Actualizar");
         JButton btnEliminar = new JButton("Eliminar");
@@ -289,7 +263,6 @@ public abstract class PanelBaseHija extends JPanel {
             limpiar();
             lblMensaje.setText(" ");
         });
-
         JPanel botones = new JPanel(new GridLayout(2, 2, 8, 8));
         botones.add(btnInsertar);
         botones.add(btnActualizar);
@@ -297,17 +270,13 @@ public abstract class PanelBaseHija extends JPanel {
         botones.add(btnLimpiar);
         g.insets = new Insets(4, 0, 12, 0);
         form.add(botones, g);
-
         lblMensaje.setVerticalAlignment(SwingConstants.TOP);
         g.fill = GridBagConstraints.BOTH;
         g.weighty = 1;
         form.add(lblMensaje, g);
-
         form.setPreferredSize(new Dimension(300, form.getPreferredSize().height));
         return form;
     }
-
-    //el texto de la etiqueta de cada campo,el * indica que es obligatorio
     private String textoEtiqueta(Campo c) {
         switch (c.tipo) {
             case ID:
@@ -318,15 +287,20 @@ public abstract class PanelBaseHija extends JPanel {
                 return c.etiqueta + " * (del " + c.minimo + " al " + c.maximo + ")";
             case FECHA:
                 return c.etiqueta + " * (AAAA-MM-DD)";
+            case FECHAHORA:
+                return c.etiqueta + " * (AAAA-MM-DD HH:MM)";
             default:
                 return c.etiqueta + " *";
         }
     }
-
     private JComponent construirTabla() {
         vista.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         vista.getTableHeader().setReorderingAllowed(false);
         vista.setRowSorter(ordenador);
+        for (Map.Entry<String, ColorColumna> color : colores.entrySet()) {
+            Campo c = buscarCampo(color.getKey());
+            vista.getColumnModel().getColumn(campos.indexOf(c)).setCellRenderer(color.getValue());
+        }
         vista.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 seleccionar();
@@ -334,12 +308,6 @@ public abstract class PanelBaseHija extends JPanel {
         });
         return new JScrollPane(vista);
     }
-
-    // ==================================================================
-    // CONSULTAS A MYSQL
-    // ==================================================================
-
-    //vuelve a llenar los menus con lo que hay en las tablas padre y luego lee los registros de esta tabla
     private void cargar() {
         modelo.setRowCount(0);
         try {
@@ -348,58 +316,46 @@ public abstract class PanelBaseHija extends JPanel {
                     llenarMenu(c);
                 }
             }
-            //ej. SELECT t.ID_Ciudad, t.Nombre_Ciudad, t.ID_Estado, u.Login_Usuario FROM Ciudad t
-            //    LEFT JOIN Usuario u ON u.ID_Usuario = t.ID_Usuario ORDER BY t.ID_Ciudad
             String sql = "SELECT " + columnas("t.", false) + ", u.Login_Usuario FROM " + tabla + " t "
                     + "LEFT JOIN Usuario u ON u.ID_Usuario = t.ID_Usuario ORDER BY " + columnas("t.", true);
-            try (Statement st = Conexion.obtener().createStatement(); ResultSet resultado = st.executeQuery(sql)) {
-                while (resultado.next()) {
-                    Object[] fila = new Object[campos.size() + 1];
-                    for (int i = 0; i < campos.size(); i++) {
-                        fila[i] = leer(resultado, i + 1, campos.get(i));
-                    }
-                    fila[campos.size()] = resultado.getString(campos.size() + 1);//null si nadie lo ha cambiado
-                    modelo.addRow(fila);
+            for (Object[] renglon : BaseDatos.consultar(sql)) {
+                Object[] fila = new Object[campos.size() + 1];
+                for (int i = 0; i < campos.size(); i++) {
+                    fila[i] = leer(renglon[i], campos.get(i));
                 }
+                fila[campos.size()] = renglon[campos.size()];
+                modelo.addRow(fila);
             }
         } catch (SQLException e) {
             error(traducir(e));
         }
         actualizarConteo();
     }
-
-    //llena un menu con el SELECT que dio la clase hija,cada renglon es una opcion "ID - texto"
-    //si ya habia algo elegido lo vuelve a elegir,siempre que todavia exista
     private void llenarMenu(Campo c) throws SQLException {
         Object elegida = c.menu.getSelectedItem();
         c.menu.removeAllItems();
-        try (Statement st = Conexion.obtener().createStatement(); ResultSet resultado = st.executeQuery(c.consulta)) {
-            while (resultado.next()) {
-                int id = resultado.getInt(1);
-                String texto = resultado.getString(2);
-                c.menu.addItem(new Opcion(id, id + " - " + (texto == null ? "(sin nombre)" : texto)));
-            }
+        for (Object[] renglon : BaseDatos.consultar(c.consulta)) {
+            int id = ((Number) renglon[0]).intValue();
+            c.menu.addItem(new Opcion(id, id + " - " + (renglon[1] == null ? "(sin nombre)" : renglon[1])));
         }
-        //al agregar la primera opcion el menu la elige solo,asi que primero se deja sin nada elegido
         c.menu.setSelectedIndex(-1);
-        c.menu.setSelectedItem(elegida);//si ya no existe no elige nada
+        c.menu.setSelectedItem(elegida);
     }
-
-    //convierte el valor que vino de MySQL en lo que se pone en la celda de la tabla
-    private Object leer(ResultSet resultado, int posicion, Campo c) throws SQLException {
+    private Object leer(Object valor, Campo c) {
+        if (valor == null) {
+            return null;
+        }
         if (c.tipo == Tipo.ID || c.tipo == Tipo.NUMERO || c.tipo == Tipo.MENU) {
-            int numero = resultado.getInt(posicion);
-            if (resultado.wasNull()) {
-                return null;
-            }
-            //en las llaves foraneas se pone la opcion del menu con ese ID,que ya trae el texto que se ve
+            int numero = ((Number) valor).intValue();
             return c.tipo == Tipo.MENU ? buscarOpcion(c, numero) : numero;
         }
-        return resultado.getString(posicion);//TEXTO y FECHA,la fecha llega como "2026-03-15"
+        String texto = valor.toString();
+        if (c.tipo == Tipo.FECHAHORA && texto.length() > 16) {
+            texto = texto.substring(0, 16);
+        }
+        return texto;
     }
-
     private void insertar() {
-        //si hay un registro seleccionado el formulario tiene sus datos: para agregar otro hay que limpiar primero
         if (llaveOriginal != null) {
             error("Hay un registro seleccionado. Usa Limpiar para agregar uno nuevo.");
             return;
@@ -407,11 +363,9 @@ public abstract class PanelBaseHija extends JPanel {
         if (!validar(false)) {
             return;
         }
-        //ej. INSERT INTO Ciudad (ID_Ciudad, Nombre_Ciudad, ID_Estado, ID_Usuario) VALUES (?, ?, ?, ?)
         String sql = "INSERT INTO " + tabla + " (" + columnas("", false) + ", ID_Usuario) VALUES (" + signos(campos.size() + 1) + ")";
-        try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            asignar(ps);
-            ps.executeUpdate();
+        try {
+            BaseDatos.ejecutar(sql, valores());
             Bitacora.registrar(tabla, "INSERTAR", describir());
             cargar();
             limpiar();
@@ -420,7 +374,6 @@ public abstract class PanelBaseHija extends JPanel {
             fallo(e);
         }
     }
-
     private void actualizar() {
         if (llaveOriginal == null) {
             error("Selecciona un registro de la tabla.");
@@ -429,17 +382,11 @@ public abstract class PanelBaseHija extends JPanel {
         if (!validar(true)) {
             return;
         }
-        //ej. UPDATE Contrato SET ID_Equipo = ?, ID_Patrocinador = ?, Inicio_Contrato = ?, Fin_Contrato = ?, ID_Usuario = ?
-        //    WHERE ID_Equipo = ? AND ID_Patrocinador = ?
-        //el WHERE usa la llave original,por si en el formulario cambiaste un dato de la llave
         String sql = "UPDATE " + tabla + " SET " + asignaciones() + ", ID_Usuario = ? WHERE " + condicionLlave();
-        try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            asignar(ps);
-            int hueco = campos.size() + 2;//el primer ? del WHERE
-            for (Object valor : llaveOriginal) {
-                ps.setObject(hueco++, valor);
-            }
-            int filas = ps.executeUpdate();
+        try {
+            List<Object> todos = new ArrayList<>(java.util.Arrays.asList(valores()));
+            todos.addAll(java.util.Arrays.asList(llaveOriginal));
+            int filas = BaseDatos.ejecutar(sql, todos.toArray());
             if (filas > 0) {
                 Bitacora.registrar(tabla, "ACTUALIZAR", describir());
             }
@@ -454,14 +401,11 @@ public abstract class PanelBaseHija extends JPanel {
             fallo(e);
         }
     }
-
     private void eliminar() {
         if (llaveOriginal == null) {
             error("Selecciona un registro de la tabla.");
             return;
         }
-        //antes de preguntar,revisa si otras tablas tienen registros ligados a este por llave foranea
-        //ej. una ciudad que ya tiene equipos o estadios: MySQL no la deja borrar (ON DELETE RESTRICT)
         try {
             StringBuilder ligados = new StringBuilder();
             int k = 0;
@@ -481,18 +425,14 @@ public abstract class PanelBaseHija extends JPanel {
                 return;
             }
         } catch (SQLException e) {
-            //si no se pudo revisar se sigue: MySQL de todos modos no deja borrar un registro con hijos y traducir() lo explica
         }
         int r = JOptionPane.showConfirmDialog(this, "¿Seguro que deseas eliminar este registro?",
                 "Eliminar registro", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         if (r != JOptionPane.YES_OPTION) {
             return;
         }
-        try (PreparedStatement ps = Conexion.obtener().prepareStatement("DELETE FROM " + tabla + " WHERE " + condicionLlave())) {
-            for (int i = 0; i < llaveOriginal.length; i++) {
-                ps.setObject(i + 1, llaveOriginal[i]);
-            }
-            if (ps.executeUpdate() > 0) {
+        try {
+            if (BaseDatos.ejecutar("DELETE FROM " + tabla + " WHERE " + condicionLlave(), llaveOriginal) > 0) {
                 Bitacora.registrar(tabla, "ELIMINAR", describir());
             }
             cargar();
@@ -502,57 +442,46 @@ public abstract class PanelBaseHija extends JPanel {
             error(traducir(e));
         }
     }
-
-    //toma lo que hay en el formulario y lo pone en los huecos ?,en el mismo orden que los campos,y al final el usuario
-    private void asignar(PreparedStatement ps) throws SQLException {
+    private Object[] valores() throws SQLException {
+        Object[] valores = new Object[campos.size() + 1];
         for (int i = 0; i < campos.size(); i++) {
             Campo c = campos.get(i);
-            int hueco = i + 1;
             String texto = c.caja == null ? null : c.caja.getText().trim();
             switch (c.tipo) {
                 case ID:
                     if (texto.isEmpty()) {
-                        //sin ID escrito: el mas chico libre a partir del 1
-                        ps.setInt(hueco, Ids.siguienteLibre(tabla, c.columna));
+                        valores[i] = Ids.siguienteLibre(tabla, c.columna);
                     } else if (padre && llaveOriginal != null) {
-                        //tabla padre al actualizar: se conserva el ID original
-                        ps.setInt(hueco, (Integer) llaveOriginal[0]);
+                        valores[i] = llaveOriginal[0];
                     } else {
-                        ps.setInt(hueco, Integer.parseInt(texto));
+                        valores[i] = Integer.parseInt(texto);
                     }
                     break;
                 case MENU:
-                    ps.setInt(hueco, ((Opcion) c.menu.getSelectedItem()).id);//se guarda el ID,no el texto
+                    valores[i] = ((Opcion) c.menu.getSelectedItem()).id;
                     break;
                 case NUMERO:
-                    ps.setInt(hueco, Integer.parseInt(texto));
+                    valores[i] = Integer.parseInt(texto);
                     break;
                 case FECHA:
-                    ps.setString(hueco, leerFecha(texto).toString());//MySQL recibe "2026-03-15"
+                    valores[i] = leerFecha(texto).toString();
+                    break;
+                case FECHAHORA:
+                    valores[i] = leerFechaHora(texto).format(FORMATO_MYSQL);
                     break;
                 default:
-                    ps.setString(hueco, texto);
+                    valores[i] = texto;
             }
         }
-        ps.setInt(campos.size() + 1, Sesion.getIdUsuario());//el id del usuario que inicio sesion
+        valores[campos.size()] = Sesion.getIdUsuario();
+        return valores;
     }
-
-    //cuando MySQL rechaza un alta o un cambio
     private void fallo(SQLException e) {
-        //1216 o 1452: lo elegido en un menu ya no existe (alguien lo borro despues de abrir la pestana)
-        //se recargan los menus para que ya no aparezca
         if (e.getErrorCode() == 1216 || e.getErrorCode() == 1452) {
             cargar();
         }
         error(traducir(e));
     }
-
-    // ==================================================================
-    // VALIDACION Y COMPORTAMIENTO DE LA PANTALLA
-    // ==================================================================
-
-    //revisa los campos en orden y luego las reglas propias de la tabla
-    //en cuanto encuentra el primer problema lo muestra en rojo y pone el cursor en ese campo
     private boolean validar(boolean actualizando) {
         String problema = null;
         JComponent donde = null;
@@ -578,8 +507,6 @@ public abstract class PanelBaseHija extends JPanel {
         }
         return problema == null;
     }
-
-    //revisa un campo,regresa el problema que tiene o null si esta bien
     private String revisar(Campo c, boolean actualizando) {
         if (c.tipo == Tipo.MENU) {
             return c.menu.getSelectedItem() == null ? "Elige una opción en «" + c.etiqueta + "»." : null;
@@ -603,23 +530,21 @@ public abstract class PanelBaseHija extends JPanel {
             case FECHA:
                 return leerFecha(texto) != null ? null
                         : "«" + c.etiqueta + "» no es una fecha válida. Usa el formato AAAA-MM-DD, por ejemplo 2026-03-15.";
+            case FECHAHORA:
+                return leerFechaHora(texto) != null ? null
+                        : "«" + c.etiqueta + "» no es válida. Usa el formato AAAA-MM-DD HH:MM (hora de 24 horas), por ejemplo 2026-03-15 19:30.";
             default:
                 return null;
         }
     }
-
-    //true si el texto es un numero entero entre minimo y maximo
     private static boolean esNumero(String texto, long minimo, long maximo) {
         try {
-            long n = Long.parseLong(texto);//long para que un numero de 10 digitos no se desborde
+            long n = Long.parseLong(texto);
             return n >= minimo && n <= maximo;
         } catch (NumberFormatException e) {
             return false;
         }
     }
-
-    //convierte "2026-03-15" en fecha,o regresa null si no es una fecha real (ej. 2026-02-30)
-    //el año debe tener 4 digitos,el rango que acepta el tipo DATE de MySQL
     private static LocalDate leerFecha(String texto) {
         try {
             LocalDate fecha = LocalDate.parse(texto);
@@ -628,9 +553,14 @@ public abstract class PanelBaseHija extends JPanel {
             return null;
         }
     }
-
-    //igual que limitar() de PanelBase,pero en vez de "solo numeros si o no" recibe los caracteres permitidos:
-    //null = cualquiera,"[0-9]*" = solo digitos,"[0-9-]*" = digitos y guion (para las fechas)
+    private static LocalDateTime leerFechaHora(String texto) {
+        try {
+            LocalDateTime fechaHora = LocalDateTime.parse(texto, FORMATO_FECHA_HORA);
+            return fechaHora.getYear() >= 1000 ? fechaHora : null;
+        } catch (DateTimeParseException e) {
+            return null;
+        }
+    }
     private static void limitar(JTextField caja, int maximo, String permitidos) {
         ((AbstractDocument) caja.getDocument()).setDocumentFilter(new DocumentFilter() {
             @Override
@@ -646,15 +576,12 @@ public abstract class PanelBaseHija extends JPanel {
                 }
                 super.replace(fb, inicio, borrados, texto, atributos);
             }
-
             @Override
             public void insertString(FilterBypass fb, int inicio, String texto, AttributeSet atributos) throws BadLocationException {
                 replace(fb, inicio, 0, texto, atributos);
             }
         });
     }
-
-    //pone en el formulario los datos del renglon seleccionado y guarda su llave original
     private void seleccionar() {
         int fila = vista.getSelectedRow();
         if (fila < 0) {
@@ -667,20 +594,18 @@ public abstract class PanelBaseHija extends JPanel {
             Object valor = modelo.getValueAt(f, i);
             if (c.tipo == Tipo.MENU) {
                 c.menu.setSelectedIndex(-1);
-                c.menu.setSelectedItem(valor);//la busca por ID (equals de Opcion)
+                c.menu.setSelectedItem(valor);
             } else {
                 c.caja.setText(valor == null ? "" : valor.toString());
-                c.caja.setEnabled(c.tipo != Tipo.ID || !padre);//en una tabla padre el ID no se edita
+                c.caja.setEnabled(c.tipo != Tipo.ID || !padre);
             }
             if (c.llave) {
-                //de una llave foranea se guarda su ID,no su texto
                 llave.add(valor instanceof Opcion ? ((Opcion) valor).id : valor);
             }
         }
         llaveOriginal = llave.toArray();
         lblMensaje.setText(" ");
     }
-
     private void limpiar() {
         for (Campo c : campos) {
             if (c.tipo == Tipo.MENU) {
@@ -693,24 +618,17 @@ public abstract class PanelBaseHija extends JPanel {
         vista.clearSelection();
         llaveOriginal = null;
     }
-
     private void filtrar() {
         String texto = txtBuscar.getText().trim();
         ordenador.setRowFilter(texto.isEmpty() ? null : RowFilter.regexFilter("(?i)" + Pattern.quote(texto)));
         actualizarConteo();
     }
-
     private void actualizarConteo() {
         int total = modelo.getRowCount();
         int visibles = vista.getRowCount();
         String palabra = total == 1 ? " registro" : " registros";
         lblConteo.setText(visibles == total ? total + palabra : visibles + " de " + total + palabra);
     }
-
-    // ==================================================================
-    // PEQUENAS AYUDAS
-    // ==================================================================
-
     private Campo agregar(Tipo tipo, String columna, String etiqueta, boolean llave) {
         Campo c = new Campo();
         c.tipo = tipo;
@@ -720,15 +638,12 @@ public abstract class PanelBaseHija extends JPanel {
         campos.add(c);
         return c;
     }
-
     private void agregarMenu(String columna, String etiqueta, String consulta, boolean llave) {
         Campo c = agregar(Tipo.MENU, columna, etiqueta, llave);
         c.consulta = consulta;
         c.menu = new JComboBox<>();
-        //el ancho del menu no depende del texto mas largo,asi no se sale del formulario
         c.menu.setPrototypeDisplayValue(new Opcion(0, "Opción de ejemplo"));
     }
-
     private Campo buscarCampo(String columna) {
         for (Campo c : campos) {
             if (c.columna.equals(columna)) {
@@ -737,8 +652,6 @@ public abstract class PanelBaseHija extends JPanel {
         }
         throw new IllegalArgumentException("No hay un campo con la columna " + columna);
     }
-
-    //la opcion del menu que tiene ese ID,si no esta (no deberia pasar) se muestra solo el numero
     private static Opcion buscarOpcion(Campo c, int id) {
         for (int i = 0; i < c.menu.getItemCount(); i++) {
             if (c.menu.getItemAt(i).id == id) {
@@ -747,8 +660,6 @@ public abstract class PanelBaseHija extends JPanel {
         }
         return new Opcion(id, String.valueOf(id));
     }
-
-    //"t.ID_Ciudad, t.Nombre_Ciudad, t.ID_Estado",o solo las de la llave si soloLlave es true
     private String columnas(String prefijo, boolean soloLlave) {
         StringBuilder sb = new StringBuilder();
         for (Campo c : campos) {
@@ -762,8 +673,6 @@ public abstract class PanelBaseHija extends JPanel {
         }
         return sb.toString();
     }
-
-    //"ID_Equipo = ?, ID_Patrocinador = ?, Inicio_Contrato = ?, Fin_Contrato = ?"
     private String asignaciones() {
         StringBuilder sb = new StringBuilder();
         for (Campo c : campos) {
@@ -774,8 +683,6 @@ public abstract class PanelBaseHija extends JPanel {
         }
         return sb.toString();
     }
-
-    //"ID_Equipo = ? AND ID_Patrocinador = ?"
     private String condicionLlave() {
         StringBuilder sb = new StringBuilder();
         for (Campo c : campos) {
@@ -788,8 +695,6 @@ public abstract class PanelBaseHija extends JPanel {
         }
         return sb.toString();
     }
-
-    //"?, ?, ?, ?"
     private static String signos(int cuantos) {
         StringBuilder sb = new StringBuilder("?");
         for (int i = 1; i < cuantos; i++) {
@@ -797,9 +702,6 @@ public abstract class PanelBaseHija extends JPanel {
         }
         return sb.toString();
     }
-
-    //texto corto para la bitacora,ej. "Equipo: 2, Patrocinador: 3, Inicio del contrato: 2026-01-01"
-    //de las llaves foraneas se anota el ID,la columna Detalle de Bitacora admite 100 caracteres
     private String describir() {
         StringBuilder sb = new StringBuilder();
         for (Campo c : campos) {
@@ -820,26 +722,16 @@ public abstract class PanelBaseHija extends JPanel {
         }
         return sb.length() > 100 ? sb.substring(0, 100) : sb.toString();
     }
-
-    // ==================================================================
-    // MENSAJES
-    // ==================================================================
-
     private void exito(String texto) {
         lblMensaje.setForeground(VERDE);
         lblMensaje.setText("<html>" + texto + "</html>");
     }
-
     private void error(String texto) {
         lblMensaje.setForeground(Color.RED);
         lblMensaje.setText("<html>" + texto + "</html>");
     }
-
-    /** Convierte los errores de MySQL en mensajes entendibles. */
     private String traducir(SQLException e) {
         String detalle = e.getMessage() == null ? "" : e.getMessage();
-        //1062 = valor repetido (llave primaria o UNIQUE),3819 = no se cumple un CHECK
-        //si la clase hija dio un mensaje para esa regla,se usa ese
         if (e.getErrorCode() == 1062 || e.getErrorCode() == 3819) {
             for (Map.Entry<String, String> aviso : avisos.entrySet()) {
                 if (detalle.contains(aviso.getKey())) {
@@ -852,7 +744,6 @@ public abstract class PanelBaseHija extends JPanel {
                 return "Ya existe un registro con esos mismos datos de llave.";
             case 3819:
                 return "Un dato no cumple una regla de la tabla: " + detalle;
-            //el usuario APP_LIGA recibe 1216 y 1217,root recibe 1452 y 1451: son los mismos errores de llave foranea
             case 1216:
             case 1452:
                 return "Algo que elegiste en un menú ya no existe en su tabla. Ya se actualizaron los menús, vuelve a elegirlo.";

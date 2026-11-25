@@ -4,7 +4,7 @@ import java.time.LocalDate;
 
 //tabla hija de Equipo y de Patrocinador: que patrocinador tiene cada equipo y de cuando a cuando
 //su llave primaria es la pareja (equipo, patrocinador): un equipo tiene un solo contrato con cada patrocinador
-public class PanelContrato extends PanelBaseHija {
+public class PanelContrato extends PanelTabla {
     public PanelContrato() {
         super("Contrato");
         llaveMenu("ID_Equipo", "Equipo", "SELECT ID_Equipo, Nombre_Equipo FROM Equipo ORDER BY Nombre_Equipo");

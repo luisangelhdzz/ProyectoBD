@@ -12,6 +12,8 @@ ProyectoBD/
     mysql-connector-j-26.7.0.jar Conector de MySQL (también puede ir en la raíz del proyecto)
   conexion/
     Conexion.java                Conexión a MySQL (usuario APP_LIGA)
+    BaseDatos.java               Ayudante: consultar(sql, valores), existe(sql, valores) y ejecutar(sql, valores).
+                                 El try/catch y el PreparedStatement se escriben solo aquí
   modelo/
     Sesion.java                  Usuario final que inició sesión (login contra la tabla Usuario)
     Bitacora.java                Anota en la tabla Bitacora quién hizo cada movimiento
@@ -20,21 +22,16 @@ ProyectoBD/
     PanelLogin.java              Pantalla de inicio de sesión
     VentanaPrincipal.java        Ventana, barra con el usuario y una pestaña por tabla
     tablas/
-<<<<<<< HEAD
-      PanelBase.java             Base de las tablas PADRE (solo ID y nombre): formulario, tabla, buscador, validaciones y CRUD
-      PanelEstado.java           Tabla Estado         (hereda de PanelBase)
-      PanelPosicion.java         Tabla Posicion       (hereda de PanelBase)
-      PanelPatrocinador.java     Tabla Patrocinador   (hereda de PanelBase)
-      PanelBaseHija.java         Base de las tablas HIJAS (con llaves foráneas): lo mismo, pero las llaves
-                                 foráneas se eligen con un menú desplegable y la llave primaria puede tener varias columnas
-      PanelCiudad.java           Tabla Ciudad         (hereda de PanelBaseHija; padre: Estado)
-      PanelContrato.java         Tabla Contrato       (hereda de PanelBaseHija; padres: Equipo y Patrocinador)
-      PanelAlineacion.java       Tabla Alineacion     (hereda de PanelBaseHija; padres: Partido, Equipo, Jugador y Posicion)
-=======
-      PanelBase.java             Clase base de todas las tablas: formulario, tabla, buscador,
-                                 validaciones, CRUD y bitácora (se escribe una sola vez)
-      PanelPosicion.java         Tabla Posicion: solo indica su tabla, sus columnas y el largo del nombre
->>>>>>> 4f48678758671153c5121a92296130ba6e97bd5d
+      PanelTabla.java            Clase base de TODAS las tablas (padre e hija): formulario, tabla, buscador, menus de
+                                 llaves foraneas, validaciones, CRUD, bitacora y colores. Se escribe una sola vez
+      ColorColumna.java          Pinta las celdas de una columna segun su valor (se reutiliza en todas las tablas)
+      PanelEstado.java           Tabla Estado         (hereda de PanelTabla)
+      PanelPosicion.java         Tabla Posicion       (hereda de PanelTabla)
+      PanelPatrocinador.java     Tabla Patrocinador   (hereda de PanelTabla)
+      PanelCiudad.java           Tabla Ciudad         (hereda de PanelTabla; padre: Estado)
+      PanelContrato.java         Tabla Contrato       (hereda de PanelTabla; padres: Equipo y Patrocinador)
+      PanelPartido.java          Pantalla "Programar Partidos" (hereda de PanelTabla; padres: Temporada, Estadio y Equipo)
+      PanelAlineacion.java       Tabla Alineacion     (hereda de PanelTabla; padres: Partido, Equipo, Jugador y Posicion)
 
 
 PASO 1: PREPARAR LA BASE (una sola vez)
@@ -76,7 +73,6 @@ O a mano (desde la raíz del proyecto):
 Si tu conector tiene otro nombre, cámbialo en ejecutar.sh.
 
 
-<<<<<<< HEAD
 VALIDACIONES DE LAS TABLAS PADRE (Estado, Posicion, Patrocinador)
 ------------------------------------------------------------------
   ID        Opcional al insertar (MySQL lo asigna). Si se escribe, debe ser un entero mayor que 0.
@@ -96,6 +92,9 @@ Si alguien borra el registro padre mientras tanto, MySQL lo rechaza, sale el avi
   Contrato     Hay que elegir equipo y patrocinador. Las fechas deben ser reales y con formato AAAA-MM-DD.
                La fecha de fin no puede ser antes que la de inicio.
                Un equipo no puede tener dos contratos con el mismo patrocinador (llave primaria).
+  Partido      Hay que elegir temporada, estadio, equipo local y equipo visitante (no pueden ser el mismo).
+               La fecha y hora van con formato AAAA-MM-DD HH:MM (24 horas) y deben ser reales.
+               Las carreras de cada equipo van del 0 al 99.
   Alineacion   Hay que elegir partido, equipo, jugador y posición. El orden al bat va del 1 al 9 (CHECK).
                El equipo tiene que jugar ese partido (ser local o visitante).
                El jugador tiene que ser de ese equipo.
@@ -108,33 +107,30 @@ AL ELIMINAR (en todas las tablas)
 Antes de borrar se revisa si otras tablas tienen registros ligados por llave foránea.
 Si los hay, sale una advertencia que dice en qué tablas y cuántos, y no se borra
 (por ejemplo, un estado que todavía tiene ciudades). Si no los hay, pide confirmación.
-=======
-VALIDACIONES DE LAS TABLAS
---------------------------
-  ID        Opcional al insertar (MySQL lo asigna). Si se escribe, debe ser un entero mayor que 0.
-            No puede quedar vacío al actualizar ni repetirse. Máximo 10 dígitos.
-  Nombre    Obligatorio, con el largo máximo que cada tabla defina (Estado y Posicion: 20).
-  Actualizar y Eliminar piden seleccionar antes un registro de la tabla.
-  Eliminar pide confirmación. Si hay registros de otras tablas que dependen del registro,
-  MySQL no lo deja borrar y la aplicación lo avisa.
->>>>>>> 4f48678758671153c5121a92296130ba6e97bd5d
 
 Cada alta o cambio guarda en ID_Usuario quién hizo el movimiento.
 Además, altas, cambios y bajas quedan anotados en la tabla Bitacora (usuario, acción y fecha),
 así también se sabe quién eliminó un registro.
 
 
-<<<<<<< HEAD
 CÓMO AGREGAR OTRA TABLA
 -----------------------
-Tabla padre (solo ID y nombre), ejemplo: copia PanelPosicion.java y cambia la tabla y las columnas:
+Todas las tablas heredan de PanelTabla y solo declaran sus campos en el orden en que quieres que salgan.
 
-   super("Posicion", "ID_Posicion", "Nombre_Posicion", "Nombre de la posición", 20);
+Tabla padre (solo ID y nombre), ejemplo Posicion:
 
-Tabla hija (con llaves foráneas), ejemplo para Equipo: hereda de PanelBaseHija y declara sus campos
-en el orden en que quieres que salgan:
+   public class PanelPosicion extends PanelTabla {
+       public PanelPosicion() {
+           super("Posicion");
+           llaveAutomatica("ID_Posicion");
+           texto("Nombre_Posicion", "Nombre de la posición", 20);
+           armarPantalla();
+       }
+   }
 
-   public class PanelEquipo extends PanelBaseHija {
+Tabla hija (con llaves foráneas), ejemplo para Equipo:
+
+   public class PanelEquipo extends PanelTabla {
        public PanelEquipo() {
            super("Equipo");
            llaveAutomatica("ID_Equipo");                       // llave primaria que asigna MySQL
@@ -144,7 +140,7 @@ en el orden en que quieres que salgan:
        }
    }
 
-   Lo que puede declarar una tabla hija:
+   Lo que puede declarar una tabla:
      llaveAutomatica(columna)                  llave primaria con AUTO_INCREMENT
      menu(columna, etiqueta, consulta)         llave foránea (el SELECT regresa el ID y el texto que se ve)
      llaveMenu(columna, etiqueta, consulta)    llave foránea que también es parte de la llave primaria
@@ -152,36 +148,25 @@ en el orden en que quieres que salgan:
      numero(columna, etiqueta, minimo, maximo) número entero obligatorio dentro de un rango
      fecha(columna, etiqueta)                  fecha obligatoria AAAA-MM-DD
      avisoRegla(nombreDeLaRegla, mensaje)      mensaje propio si falla un UNIQUE, un CHECK o la llave primaria (PRIMARY)
+     colorear(columna, color, "valor", ...)    pinta las celdas de esa columna cuando su texto es alguno de esos valores
+     colorear(columna, color, v -> condicion)  lo mismo con una regla propia, ej. v -> v.equals("Baja")
    Y si necesita reglas de más de un campo, sobreescribe reglaExtra() (ver PanelContrato y PanelAlineacion).
 
-En los dos casos, regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
+   Ejemplo de colores (el primer dato es el nombre de la COLUMNA de MySQL, el mismo que pusiste en texto/numero/menu):
+     colorear("Estatus_Jugador", new Color(198, 239, 206), "Activo");
+     colorear("Estatus_Jugador", new Color(255, 199, 206), v -> v.equals("Baja"));
+
+Y en los dos casos, regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
 
    pestanas.addTab("Equipos", new PanelEquipo());
 
    (y su import: import vista.tablas.PanelEquipo;)
-=======
-CÓMO AGREGAR OTRA TABLA (ejemplo: Ciudad)
------------------------------------------
-Ya no hace falta copiar ninguna pantalla. Todo el comportamiento está en PanelBase.
 
-1. Crea vista/tablas/PanelCiudad.java con este contenido (ajusta los datos):
 
-   package vista.tablas;
+PARA HACER CONSULTAS EN EL CÓDIGO
+---------------------------------
+No escribas try/catch con PreparedStatement: usa conexion.BaseDatos.
 
-   public class PanelCiudad extends PanelBase {
-       public PanelCiudad() {
-           super("Ciudad", "ID_Ciudad", "Nombre_Ciudad", "Nombre de la ciudad", 30);
-       }
-   }
-
-   Los parámetros son: tabla, columna ID, columna nombre, texto de la etiqueta, largo máximo del nombre.
-
-2. Agrega la columna ID_Usuario a la tabla en usuarios_finales.sql (ya viene con CALL
-   agregar_id_usuario para las tablas del proyecto; si es nueva, agrega un CALL igual).
-
-3. Regístrala en VentanaPrincipal.java, dentro de mostrarPrincipal():
-
-   pestanas.addTab("Ciudades", new PanelCiudad());
-
-   (y su import: import vista.tablas.PanelCiudad;)
->>>>>>> 4f48678758671153c5121a92296130ba6e97bd5d
+   List<Object[]> filas = BaseDatos.consultar("SELECT ID_Equipo, Nombre_Equipo FROM Equipo WHERE ID_Ciudad = ?", 3);
+   boolean hay = BaseDatos.existe("SELECT 1 FROM Jugador WHERE ID_Jugador = ?", 7);
+   int cambiados = BaseDatos.ejecutar("DELETE FROM Equipo WHERE ID_Equipo = ?", 5);

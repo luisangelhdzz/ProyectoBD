@@ -5,12 +5,10 @@
 
 package modelo;
 
-import conexion.Conexion;
+import conexion.BaseDatos;
 
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
+import java.util.List;
 
 public final class Ids {
 
@@ -20,16 +18,14 @@ public final class Ids {
     //recorre los IDs de menor a mayor y avanza mientras encuentre el numero que sigue sin saltos
     //en cuanto aparece un hueco (un ID mayor que el esperado) ese es el libre
     public static int siguienteLibre(String tabla, String columna) throws SQLException {
-        String sql = "SELECT " + columna + " FROM " + tabla + " ORDER BY " + columna;
+        List<Object[]> renglones = BaseDatos.consultar("SELECT " + columna + " FROM " + tabla + " ORDER BY " + columna);
         int esperado = 1;
-        try (Statement st = Conexion.obtener().createStatement(); ResultSet resultado = st.executeQuery(sql)) {
-            while (resultado.next()) {
-                int id = resultado.getInt(1);
-                if (id == esperado) {
-                    esperado++;
-                } else if (id > esperado) {
-                    break;
-                }
+        for (Object[] renglon : renglones) {
+            int id = ((Number) renglon[0]).intValue();
+            if (id == esperado) {
+                esperado++;
+            } else if (id > esperado) {
+                break;
             }
         }
         return esperado;
@@ -37,14 +33,10 @@ public final class Ids {
 
     //si no se puede consultar se regresa false: la tabla se trata como hija y el ID sigue editable
     public static boolean esPadre(String tabla) {
-        String sql = "SELECT COUNT(*) FROM information_schema.KEY_COLUMN_USAGE "
-                + "WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL "
-                + "AND LOWER(REFERENCED_TABLE_NAME) = LOWER(?)";
-        try (PreparedStatement ps = Conexion.obtener().prepareStatement(sql)) {
-            ps.setString(1, tabla);
-            try (ResultSet resultado = ps.executeQuery()) {
-                return resultado.next() && resultado.getInt(1) > 0;
-            }
+        try {
+            return BaseDatos.existe("SELECT 1 FROM information_schema.KEY_COLUMN_USAGE "
+                    + "WHERE TABLE_SCHEMA = DATABASE() AND REFERENCED_TABLE_NAME IS NOT NULL "
+                    + "AND LOWER(REFERENCED_TABLE_NAME) = LOWER(?)", tabla);
         } catch (SQLException e) {
             return false;
         }

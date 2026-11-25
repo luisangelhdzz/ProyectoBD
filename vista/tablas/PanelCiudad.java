@@ -2,7 +2,7 @@ package vista.tablas;
 
 //tabla hija de Estado: cada ciudad pertenece a un estado
 //el estado se elige con un menu que muestra los estados que hay en la tabla Estado
-public class PanelCiudad extends PanelBaseHija {
+public class PanelCiudad extends PanelTabla {
     public PanelCiudad() {
         super("Ciudad");
         llaveAutomatica("ID_Ciudad");
