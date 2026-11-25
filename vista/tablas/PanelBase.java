@@ -9,7 +9,7 @@ import conexion.Conexion;
 import modelo.Sesion;
 import modelo.Bitacora;
 import modelo.Dependencias;
-import out.modelo.Ids;
+import modelo.Ids;
 
 import javax.swing.*;
 import javax.swing.border.CompoundBorder;

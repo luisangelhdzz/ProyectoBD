@@ -3,7 +3,7 @@
 //  solo 1 -> 2 | 1 y 4 -> 2 | 2 y 3 -> 1 | 1, 2 y 3 -> 4
 //esPadre: true si otra tabla tiene una llave foranea que apunta a esta. Una tabla padre no debe cambiar su ID
 
-package out.modelo;
+package modelo;
 
 import conexion.Conexion;
 

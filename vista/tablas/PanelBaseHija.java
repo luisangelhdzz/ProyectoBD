@@ -11,7 +11,7 @@ package vista.tablas;
 import conexion.Conexion;
 import modelo.Bitacora;
 import modelo.Dependencias;
-import out.modelo.Ids;
+import modelo.Ids;
 import modelo.Sesion;
 
 import javax.swing.*;
